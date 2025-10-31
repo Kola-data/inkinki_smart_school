@@ -1,0 +1,142 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+*.env
+!env_template.txt
+
+# IDE / Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+*.log
+logs/
+*.log.*
+server.log
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+db.sqlite3
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Redis
+dump.rdb
+
+# Node.js / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Frontend Build
+client/dist/
+client/build/
+client/.vite/
+client/.next/
+client/out/
+
+# TypeScript
+*.tsbuildinfo
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Docker
+.dockerignore
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Alembic
+# Keep alembic migrations but ignore any temp files
+*.pyc
+!alembic/versions/*.py
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+*.bak
+
+# Coverage reports
+.coverage
+coverage.xml
+*.cover
+.hypothesis/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Local configuration
+config.local.py
+local_settings.py
+
