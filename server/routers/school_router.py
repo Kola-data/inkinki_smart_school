@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 from database import get_db
 from services.school_service import SchoolService
 from schemas.school_schemas import SchoolCreate, SchoolUpdate, SchoolResponse
+from utils.file_utils import save_base64_file
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -54,9 +55,32 @@ async def get_school_by_id(request: Request, school_id: str, db: AsyncSession = 
 async def create_school(request: Request, school_data: SchoolCreate, db: AsyncSession = Depends(get_db)):
     """Create a new school"""
     try:
+        # Handle school_logo if it's a base64 string
+        logo_path = None
+        if school_data.school_logo:
+            # Check if it's a base64 string (starts with data: or is very long)
+            if isinstance(school_data.school_logo, str) and (school_data.school_logo.startswith("data:") or len(school_data.school_logo) > 1000):
+                # Save base64 to file
+                filename = f"school_logo_{school_data.school_name.replace(' ', '_')}.png"
+                logo_path = save_base64_file(school_data.school_logo, filename, "schools")
+                if not logo_path:
+                    raise HTTPException(status_code=400, detail="Failed to save school logo")
+            else:
+                # Already a path/URL
+                logo_path = school_data.school_logo
+        
+        # Update school_data with file path instead of base64
+        school_data_dict = school_data.model_dump(exclude={"school_logo"})
+        school_data_dict["school_logo"] = logo_path
+        
+        # Create new SchoolCreate object with file path
+        school_data = SchoolCreate(**school_data_dict)
+        
         service = SchoolService(db)
         school = await service.create_school(school_data)
         return school
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating school: {str(e)}")
 

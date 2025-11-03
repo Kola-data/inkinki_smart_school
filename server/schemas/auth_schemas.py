@@ -17,6 +17,7 @@ class LoginResponse(BaseModel):
     staff_role: str
     school_id: UUID
     email: str
+    staff_profile: Optional[str] = None
 
 class ResetPasswordRequest(BaseModel):
     """Schema for password reset request"""

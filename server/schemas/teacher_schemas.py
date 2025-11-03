@@ -33,6 +33,7 @@ class TeacherResponse(BaseModel):
 class TeacherWithStaffResponse(BaseModel):
     """Schema for teacher response with staff information"""
     teacher_id: UUID
+    staff_id: Optional[UUID] = None
     specialized: Optional[str] = None
     is_active: bool
     is_deleted: bool
@@ -41,6 +42,7 @@ class TeacherWithStaffResponse(BaseModel):
     staff_name: Optional[str] = None
     staff_email: Optional[str] = None
     staff_role: Optional[str] = None
+    staff_profile: Optional[str] = None
     
     class Config:
         from_attributes = True

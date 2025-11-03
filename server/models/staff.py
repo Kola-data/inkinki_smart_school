@@ -21,6 +21,7 @@ class Staff(Base):
     qualifications = Column(Text)
     experience = Column(Text)
     email = Column(String(255), unique=True, nullable=False)
+    phone = Column(String(20))
     password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True)
     is_deleted = Column(Boolean, default=False)
@@ -45,6 +46,7 @@ class Staff(Base):
             "qualifications": self.qualifications,
             "experience": self.experience,
             "email": self.email,
+            "phone": self.phone,
             "is_active": self.is_active,
             "is_deleted": self.is_deleted,
             "created_at": self.created_at.isoformat() if self.created_at else None,

@@ -140,3 +140,9 @@ dmypy.json
 config.local.py
 local_settings.py
 
+# Upload directories
+server/uploads/
+server/school_logs/
+uploads/
+school_logs/
+

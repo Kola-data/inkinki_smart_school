@@ -138,6 +138,7 @@ class StaffService:
             qualifications=staff_data.qualifications,
             experience=staff_data.experience,
             email=staff_data.email,
+            phone=staff_data.phone,
             password=hashed_password,
             is_active=staff_data.is_active
         )
@@ -170,15 +171,25 @@ class StaffService:
         # Remove school_id from update data to prevent changing schools
         update_data.pop('school_id', None)
         
-        # Handle password hashing if password is being updated
-        if 'password' in update_data and update_data['password'] is not None:
-            update_data['password'] = hash_password(update_data['password'])
+        # Handle password hashing if password is being updated (only if provided and not empty)
+        if 'password' in update_data:
+            if update_data['password'] and update_data['password'].strip():
+                update_data['password'] = hash_password(update_data['password'])
+            else:
+                # If password is empty/None, don't update it
+                update_data.pop('password', None)
+        
+        # Log update data for debugging
+        print(f"Updating staff {staff_id} with data: {update_data}")
         
         for field, value in update_data.items():
             setattr(staff, field, value)
         
         await self.db.commit()
         await self.db.refresh(staff)
+        
+        # Log updated staff status
+        print(f"Staff {staff_id} updated. New is_active status: {staff.is_active}")
         
         # Clear cache
         await self._clear_staff_cache(staff.school_id)

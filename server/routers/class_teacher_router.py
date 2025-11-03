@@ -11,6 +11,7 @@ from schemas.class_teacher_schemas import (
     ClassTeacherWithDetailsResponse,
     ClassTeacherSoftDelete
 )
+from utils.school_utils import verify_school_active
 
 router = APIRouter(prefix="/class-teachers", tags=["Class Teachers"])
 
@@ -18,6 +19,7 @@ router = APIRouter(prefix="/class-teachers", tags=["Class Teachers"])
 async def get_all_class_teachers_with_details(school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get all class teacher assignments with detailed information for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         class_teacher_service = ClassTeacherService(db)
         assignments = await class_teacher_service.get_all_class_teachers_with_details(school_id)
         return assignments
@@ -31,6 +33,7 @@ async def get_all_class_teachers_with_details(school_id: UUID, db: AsyncSession 
 async def get_class_teacher_by_id(assignment_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get a class teacher assignment by ID with detailed information for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         class_teacher_service = ClassTeacherService(db)
         assignment = await class_teacher_service.get_class_teacher_by_id_with_details(assignment_id, school_id)
         if not assignment:
@@ -51,6 +54,7 @@ async def get_class_teacher_by_id(assignment_id: UUID, school_id: UUID, db: Asyn
 async def create_class_teacher(assignment_data: ClassTeacherCreate, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Create a new class teacher assignment for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         class_teacher_service = ClassTeacherService(db)
         assignment = await class_teacher_service.create_class_teacher(assignment_data, school_id)
         return assignment
@@ -69,6 +73,7 @@ async def create_class_teacher(assignment_data: ClassTeacherCreate, school_id: U
 async def update_class_teacher(assignment_id: UUID, assignment_data: ClassTeacherUpdate, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Update a class teacher assignment for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         class_teacher_service = ClassTeacherService(db)
         assignment = await class_teacher_service.update_class_teacher(assignment_id, assignment_data, school_id)
         if not assignment:
@@ -94,6 +99,7 @@ async def update_class_teacher(assignment_id: UUID, assignment_data: ClassTeache
 async def soft_delete_class_teacher(assignment_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Soft delete a class teacher assignment for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         class_teacher_service = ClassTeacherService(db)
         success = await class_teacher_service.soft_delete_class_teacher(assignment_id, school_id)
         if not success:

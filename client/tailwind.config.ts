@@ -13,6 +13,14 @@ export default {
 					700: '#5145CD',
 				},
 				accent: '#7C3AED',
+				coral: {
+					400: '#FF8C94',
+					500: '#FF7A82',
+					600: '#FF6B73',
+				},
+			},
+			borderRadius: {
+				'3': '3px',
 			},
 			boxShadow: {
 				card: '0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.05)',

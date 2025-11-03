@@ -24,9 +24,20 @@ def upgrade() -> None:
     # First add the column as nullable
     op.add_column('subjects', sa.Column('school_id', sa.UUID(), nullable=True))
     
-    # Update existing subjects to have a default school_id (use first school if available)
-    # For now, we'll delete existing subjects since they don't have school context
-    op.execute("DELETE FROM subjects")
+    # Update existing subjects to have a default school_id
+    connection = op.get_bind()
+    result = connection.execute(sa.text("SELECT school_id FROM schools WHERE is_deleted = false LIMIT 1"))
+    first_school = result.fetchone()
+    
+    if first_school:
+        default_school_id = first_school[0]
+        connection.execute(
+            sa.text("UPDATE subjects SET school_id = :school_id WHERE school_id IS NULL"),
+            {"school_id": default_school_id}
+        )
+    else:
+        # If no schools exist, delete existing subjects
+        connection.execute(sa.text("DELETE FROM subjects"))
     
     # Now make the column non-nullable
     op.alter_column('subjects', 'school_id', nullable=False)

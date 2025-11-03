@@ -3,6 +3,7 @@ from sqlalchemy import select
 from typing import Optional, Dict, Any
 from uuid import UUID
 from models.staff import Staff
+from models.school import School
 from schemas.auth_schemas import LoginRequest, LoginResponse, ResetPasswordRequest, ResetPasswordConfirm, ChangePasswordRequest
 from utils.auth_utils import create_access_token, verify_password, get_password_hash, verify_token
 from utils.password_utils import hash_password, verify_password as bcrypt_verify_password
@@ -51,6 +52,72 @@ class AuthService:
                 )
                 return None
             
+            # Check if staff is active and not deleted (already checked above, but double-check)
+            if staff.is_deleted or not staff.is_active:
+                # Log failed login attempt
+                await logging_service.log_async(
+                    level=LogLevel.WARNING,
+                    action=ActionType.LOGIN_FAILED,
+                    message=f"Login attempt for inactive or deleted staff: {login_data.email}",
+                    data={
+                        "email": login_data.email,
+                        "staff_id": str(staff.staff_id),
+                        "is_active": staff.is_active,
+                        "is_deleted": staff.is_deleted
+                    }
+                )
+                return None
+            
+            # Verify school is active and not deleted
+            school_result = await self.db.execute(
+                select(School).filter(
+                    School.school_id == staff.school_id
+                )
+            )
+            school = school_result.scalar_one_or_none()
+            
+            if not school:
+                # Log failed login attempt
+                await logging_service.log_async(
+                    level=LogLevel.WARNING,
+                    action=ActionType.LOGIN_FAILED,
+                    message=f"Login attempt for staff with invalid school: {login_data.email}",
+                    data={
+                        "email": login_data.email,
+                        "staff_id": str(staff.staff_id),
+                        "school_id": str(staff.school_id)
+                    }
+                )
+                return None
+            
+            if school.is_deleted:
+                # Log failed login attempt
+                await logging_service.log_async(
+                    level=LogLevel.WARNING,
+                    action=ActionType.LOGIN_FAILED,
+                    message=f"Login attempt for staff in deleted school: {login_data.email}",
+                    data={
+                        "email": login_data.email,
+                        "staff_id": str(staff.staff_id),
+                        "school_id": str(staff.school_id)
+                    }
+                )
+                return None
+            
+            if not school.is_active:
+                # Log failed login attempt
+                await logging_service.log_async(
+                    level=LogLevel.WARNING,
+                    action=ActionType.LOGIN_FAILED,
+                    message=f"Login attempt for staff in inactive school: {login_data.email}",
+                    data={
+                        "email": login_data.email,
+                        "staff_id": str(staff.staff_id),
+                        "school_id": str(staff.school_id)
+                    }
+                )
+                return None
+            
             # Create JWT token
             token_data = {
                 "staff_id": str(staff.staff_id),
@@ -79,10 +146,11 @@ class AuthService:
                 access_token=access_token,
                 staff_id=staff.staff_id,
                 staff_name=staff.staff_name,
-                staff_title=staff.staff_title,
-                staff_role=staff.staff_role,
+                staff_title=staff.staff_title or "",
+                staff_role=staff.staff_role or "",
                 school_id=staff.school_id,
-                email=staff.email
+                email=staff.email,
+                staff_profile=staff.staff_profile
             )
             
         except Exception as e:

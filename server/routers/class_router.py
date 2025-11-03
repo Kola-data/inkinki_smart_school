@@ -11,6 +11,7 @@ from schemas.class_schemas import (
     ClassWithManagerResponse,
     ClassSoftDelete
 )
+from utils.school_utils import verify_school_active
 
 router = APIRouter(prefix="/classes", tags=["Classes"])
 
@@ -18,6 +19,7 @@ router = APIRouter(prefix="/classes", tags=["Classes"])
 async def get_all_classes_with_manager_info(school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get all classes with manager information for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         class_service = ClassService(db)
         classes = await class_service.get_all_classes_with_manager_info(school_id)
         return classes
@@ -31,6 +33,7 @@ async def get_all_classes_with_manager_info(school_id: UUID, db: AsyncSession = 
 async def get_class_by_id(cls_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get a class by ID with manager information for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         class_service = ClassService(db)
         class_obj = await class_service.get_class_by_id_with_manager_info(cls_id, school_id)
         if not class_obj:
@@ -51,6 +54,7 @@ async def get_class_by_id(cls_id: UUID, school_id: UUID, db: AsyncSession = Depe
 async def create_class(class_data: ClassCreate, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Create a new class for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         class_service = ClassService(db)
         class_obj = await class_service.create_class(class_data, school_id)
         return class_obj
@@ -69,6 +73,7 @@ async def create_class(class_data: ClassCreate, school_id: UUID, db: AsyncSessio
 async def update_class(cls_id: UUID, class_data: ClassUpdate, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Update a class for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         class_service = ClassService(db)
         class_obj = await class_service.update_class(cls_id, class_data, school_id)
         if not class_obj:
@@ -94,6 +99,7 @@ async def update_class(cls_id: UUID, class_data: ClassUpdate, school_id: UUID, d
 async def soft_delete_class(cls_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Soft delete a class for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         class_service = ClassService(db)
         success = await class_service.soft_delete_class(cls_id, school_id)
         if not success:

@@ -11,6 +11,7 @@ from schemas.academic_year_schemas import (
     AcademicYearStatusUpdate, 
     AcademicYearSoftDelete
 )
+from utils.school_utils import verify_school_active
 
 router = APIRouter(prefix="/academic-years", tags=["Academic Years"])
 
@@ -18,6 +19,7 @@ router = APIRouter(prefix="/academic-years", tags=["Academic Years"])
 async def get_all_academic_years(school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get all academic years for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         academic_year_service = AcademicYearService(db)
         academic_years = await academic_year_service.get_all_academic_years(school_id)
         return academic_years
@@ -31,6 +33,7 @@ async def get_all_academic_years(school_id: UUID, db: AsyncSession = Depends(get
 async def get_all_academic_years_for_school(school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get all academic years (current or not) for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         academic_year_service = AcademicYearService(db)
         academic_years = await academic_year_service.get_all_academic_years_for_school(school_id)
         return academic_years
@@ -44,6 +47,7 @@ async def get_all_academic_years_for_school(school_id: UUID, db: AsyncSession = 
 async def get_current_academic_year(school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get the current academic year for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         academic_year_service = AcademicYearService(db)
         academic_year = await academic_year_service.get_current_academic_year(school_id)
         if not academic_year:
@@ -64,6 +68,7 @@ async def get_current_academic_year(school_id: UUID, db: AsyncSession = Depends(
 async def get_academic_year_by_id(academic_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get an academic year by ID for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         academic_year_service = AcademicYearService(db)
         academic_year = await academic_year_service.get_academic_year_by_id(academic_id, school_id)
         if not academic_year:
@@ -84,6 +89,7 @@ async def get_academic_year_by_id(academic_id: UUID, school_id: UUID, db: AsyncS
 async def create_academic_year(academic_year_data: AcademicYearCreate, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Create a new academic year for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         academic_year_service = AcademicYearService(db)
         academic_year = await academic_year_service.create_academic_year(academic_year_data, school_id)
         return academic_year
@@ -97,6 +103,7 @@ async def create_academic_year(academic_year_data: AcademicYearCreate, school_id
 async def update_academic_year(academic_id: UUID, academic_year_data: AcademicYearUpdate, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Update an academic year for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         academic_year_service = AcademicYearService(db)
         academic_year = await academic_year_service.update_academic_year(academic_id, academic_year_data, school_id)
         if not academic_year:
@@ -117,6 +124,7 @@ async def update_academic_year(academic_id: UUID, academic_year_data: AcademicYe
 async def soft_delete_academic_year(academic_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Soft delete an academic year for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         academic_year_service = AcademicYearService(db)
         success = await academic_year_service.soft_delete_academic_year(academic_id, school_id)
         if not success:
@@ -136,6 +144,7 @@ async def soft_delete_academic_year(academic_id: UUID, school_id: UUID, db: Asyn
 async def set_current_academic_year(academic_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Set an academic year as current for a specific school (deactivates all others for that school)"""
     try:
+        await verify_school_active(school_id, db)
         academic_year_service = AcademicYearService(db)
         success = await academic_year_service.set_current_academic_year(academic_id, school_id)
         if not success:

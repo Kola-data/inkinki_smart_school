@@ -12,6 +12,7 @@ from schemas.teacher_schemas import (
     TeacherStatusUpdate, 
     TeacherSoftDelete
 )
+from utils.school_utils import verify_school_active
 
 router = APIRouter(prefix="/teachers", tags=["Teachers"])
 
@@ -19,9 +20,14 @@ router = APIRouter(prefix="/teachers", tags=["Teachers"])
 async def get_all_teachers_with_staff_info(school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get all teachers with staff and school information for a specific school"""
     try:
+        # Verify school is active and not deleted
+        await verify_school_active(school_id, db)
+        
         teacher_service = TeacherService(db)
         teachers = await teacher_service.get_all_teachers_with_staff_info(school_id)
         return teachers
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -33,6 +39,9 @@ async def get_all_teachers_with_staff_info(school_id: UUID, db: AsyncSession = D
 async def get_teacher_by_id(teacher_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get a teacher by ID with staff and school information for a specific school"""
     try:
+        # Verify school is active and not deleted
+        await verify_school_active(school_id, db)
+        
         teacher_service = TeacherService(db)
         teacher = await teacher_service.get_teacher_by_id_with_staff_info(teacher_id, school_id)
         if not teacher:
@@ -53,9 +62,14 @@ async def get_teacher_by_id(teacher_id: UUID, school_id: UUID, db: AsyncSession 
 async def create_teacher(teacher_data: TeacherCreate, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Create a new teacher for a specific school"""
     try:
+        # Verify school is active and not deleted
+        await verify_school_active(school_id, db)
+        
         teacher_service = TeacherService(db)
         teacher = await teacher_service.create_teacher(teacher_data, school_id)
         return teacher
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -71,6 +85,9 @@ async def create_teacher(teacher_data: TeacherCreate, school_id: UUID, db: Async
 async def update_teacher(teacher_id: UUID, teacher_data: TeacherUpdate, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Update a teacher for a specific school"""
     try:
+        # Verify school is active and not deleted
+        await verify_school_active(school_id, db)
+        
         teacher_service = TeacherService(db)
         teacher = await teacher_service.update_teacher(teacher_id, teacher_data, school_id)
         if not teacher:
@@ -91,6 +108,9 @@ async def update_teacher(teacher_id: UUID, teacher_data: TeacherUpdate, school_i
 async def soft_delete_teacher(teacher_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Soft delete a teacher for a specific school"""
     try:
+        # Verify school is active and not deleted
+        await verify_school_active(school_id, db)
+        
         teacher_service = TeacherService(db)
         success = await teacher_service.soft_delete_teacher(teacher_id, school_id)
         if not success:
@@ -110,6 +130,9 @@ async def soft_delete_teacher(teacher_id: UUID, school_id: UUID, db: AsyncSessio
 async def activate_teacher(teacher_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Activate a teacher for a specific school"""
     try:
+        # Verify school is active and not deleted
+        await verify_school_active(school_id, db)
+        
         teacher_service = TeacherService(db)
         success = await teacher_service.activate_teacher(teacher_id, school_id)
         if not success:
@@ -130,6 +153,9 @@ async def activate_teacher(teacher_id: UUID, school_id: UUID, db: AsyncSession =
 async def deactivate_teacher(teacher_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Deactivate a teacher for a specific school"""
     try:
+        # Verify school is active and not deleted
+        await verify_school_active(school_id, db)
+        
         teacher_service = TeacherService(db)
         success = await teacher_service.deactivate_teacher(teacher_id, school_id)
         if not success:

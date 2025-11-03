@@ -17,6 +17,7 @@ class StaffBase(BaseModel):
     qualifications: Optional[str] = None
     experience: Optional[str] = None
     email: EmailStr
+    phone: Optional[str] = None
 
 class StaffCreate(StaffBase):
     """Schema for creating a new staff member"""
@@ -37,7 +38,9 @@ class StaffUpdate(BaseModel):
     qualifications: Optional[str] = None
     experience: Optional[str] = None
     email: Optional[EmailStr] = None
+    phone: Optional[str] = None
     password: Optional[str] = None
+    is_active: Optional[bool] = None
 
 class StaffResponse(StaffBase):
     """Schema for staff response"""

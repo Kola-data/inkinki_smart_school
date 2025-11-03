@@ -10,6 +10,7 @@ from schemas.subject_schemas import (
     SubjectResponse, 
     SubjectSoftDelete
 )
+from utils.school_utils import verify_school_active
 
 router = APIRouter(prefix="/subjects", tags=["Subjects"])
 
@@ -17,6 +18,7 @@ router = APIRouter(prefix="/subjects", tags=["Subjects"])
 async def get_all_subjects(school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get all subjects for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         subject_service = SubjectService(db)
         subjects = await subject_service.get_all_subjects(school_id)
         return subjects
@@ -30,6 +32,7 @@ async def get_all_subjects(school_id: UUID, db: AsyncSession = Depends(get_db)):
 async def get_subject_by_id(subj_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get a subject by ID for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         subject_service = SubjectService(db)
         subject = await subject_service.get_subject_by_id(subj_id, school_id)
         if not subject:
@@ -50,6 +53,7 @@ async def get_subject_by_id(subj_id: UUID, school_id: UUID, db: AsyncSession = D
 async def create_subject(subject_data: SubjectCreate, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Create a new subject for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         subject_service = SubjectService(db)
         subject = await subject_service.create_subject(subject_data, school_id)
         return subject
@@ -63,6 +67,7 @@ async def create_subject(subject_data: SubjectCreate, school_id: UUID, db: Async
 async def update_subject(subj_id: UUID, subject_data: SubjectUpdate, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Update a subject for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         subject_service = SubjectService(db)
         subject = await subject_service.update_subject(subj_id, subject_data, school_id)
         if not subject:
@@ -83,6 +88,7 @@ async def update_subject(subj_id: UUID, subject_data: SubjectUpdate, school_id: 
 async def soft_delete_subject(subj_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
     """Soft delete a subject for a specific school"""
     try:
+        await verify_school_active(school_id, db)
         subject_service = SubjectService(db)
         success = await subject_service.soft_delete_subject(subj_id, school_id)
         if not success:

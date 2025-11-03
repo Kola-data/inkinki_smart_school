@@ -25,21 +25,86 @@ class FeeManagementService:
         """Get all fee management records for a specific school with joined tables"""
         cache_key = f"fees:school:{school_id}"
         
-        if not as_dict:
-            # Return original behavior for backward compatibility
-            cached_fees = await redis_service.get(cache_key)
-        
-        if cached_fees:
-            return cached_fees
-        
         result = await self.db.execute(
             select(FeeManagement).filter(
                 FeeManagement.school_id == school_id,
                 FeeManagement.is_deleted == False
+            ).options(
+                selectinload(FeeManagement.student),
+                selectinload(FeeManagement.fee_type),
+                selectinload(FeeManagement.academic_year)
             )
         )
         fees = result.scalars().all()
         
+        if as_dict:
+            # Return dictionaries with joined data
+            fee_list = []
+            for fee in fees:
+                # Access relationships directly - selectinload should have loaded them
+                # If relationship doesn't exist or related record is deleted, it will be None
+                try:
+                    student = fee.student if fee.student is not None else None
+                except (AttributeError, Exception):
+                    student = None
+                
+                try:
+                    fee_type = fee.fee_type if fee.fee_type is not None else None
+                except (AttributeError, Exception):
+                    fee_type = None
+                
+                try:
+                    academic_year = fee.academic_year if fee.academic_year is not None else None
+                except (AttributeError, Exception):
+                    academic_year = None
+                
+                fee_dict = {
+                    # Fee management fields
+                    "fee_id": str(fee.fee_id),
+                    "school_id": str(fee.school_id),
+                    "std_id": str(fee.std_id),
+                    "fee_type_id": str(fee.fee_type_id),
+                    "academic_id": str(fee.academic_id),
+                    "term": fee.term,
+                    "amount_paid": float(fee.amount_paid) if fee.amount_paid is not None else 0.0,
+                    "status": fee.status,
+                    "is_deleted": fee.is_deleted,
+                    "created_at": fee.created_at.isoformat() if fee.created_at else None,
+                    "updated_at": fee.updated_at.isoformat() if fee.updated_at else None,
+                    
+                    # Student details (joined from students table)
+                    "student_name": student.std_name if student else None,
+                    "student": {
+                        "std_id": str(student.std_id),
+                        "std_name": student.std_name,
+                        "std_code": student.std_code,
+                        "std_dob": student.std_dob,
+                        "std_gender": student.std_gender,
+                        "status": student.status,
+                    } if student else None,
+                    
+                    # Fee type details (joined from fee_types table)
+                    "fee_type": {
+                        "fee_type_id": str(fee_type.fee_type_id),
+                        "fee_type_name": fee_type.fee_type_name,
+                        "description": fee_type.description,
+                        "amount_to_pay": float(fee_type.amount_to_pay) if fee_type.amount_to_pay is not None else 0.0,
+                        "is_active": fee_type.is_active,
+                    } if fee_type else None,
+                    
+                    # Academic year details (joined from academic_years table)
+                    "academic_year": {
+                        "academic_id": str(academic_year.academic_id),
+                        "academic_name": academic_year.academic_name,
+                        "start_date": academic_year.start_date.isoformat() if academic_year.start_date else None,
+                        "end_date": academic_year.end_date.isoformat() if academic_year.end_date else None,
+                        "is_current": academic_year.is_current,
+                    } if academic_year else None,
+                }
+                fee_list.append(fee_dict)
+            return fee_list
+        
+        # Return original FeeManagement objects
         fee_data = [fee.to_dict() for fee in fees]
         await redis_service.set(cache_key, fee_data, expire=settings.REDIS_CACHE_TTL)
         

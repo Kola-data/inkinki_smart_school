@@ -86,6 +86,7 @@ class TeacherService:
         # Join teachers with staff table for specific school (no school join)
         query = select(
             Teacher.teacher_id,
+            Teacher.staff_id,
             Teacher.specialized,
             Teacher.is_active,
             Teacher.is_deleted,
@@ -93,7 +94,8 @@ class TeacherService:
             Teacher.updated_at,
             Staff.staff_name,
             Staff.email,
-            Staff.staff_role
+            Staff.staff_role,
+            Staff.staff_profile
         ).select_from(
             join(Teacher, Staff, Teacher.staff_id == Staff.staff_id)
         ).where(
@@ -108,8 +110,9 @@ class TeacherService:
         # Convert to list of dictionaries
         teachers_list = []
         for row in teachers_data:
-            teachers_list.append({
+            teacher_dict = {
                 "teacher_id": str(row.teacher_id),
+                "staff_id": str(row.staff_id) if row.staff_id else None,
                 "specialized": row.specialized,
                 "is_active": row.is_active,
                 "is_deleted": row.is_deleted,
@@ -117,8 +120,10 @@ class TeacherService:
                 "updated_at": row.updated_at.isoformat() if row.updated_at else None,
                 "staff_name": row.staff_name,
                 "staff_email": row.email,
-                "staff_role": row.staff_role
-            })
+                "staff_role": row.staff_role,
+                "staff_profile": row.staff_profile  # This should be included now
+            }
+            teachers_list.append(teacher_dict)
         
         # Log database operation
         await logging_service.log_database_operation("SELECT", "teachers_with_staff", data={"count": len(teachers_list), "school_id": str(school_id)})
@@ -176,6 +181,7 @@ class TeacherService:
         # Join teachers with staff table for specific school (no school join)
         query = select(
             Teacher.teacher_id,
+            Teacher.staff_id,
             Teacher.specialized,
             Teacher.is_active,
             Teacher.is_deleted,
@@ -183,7 +189,8 @@ class TeacherService:
             Teacher.updated_at,
             Staff.staff_name,
             Staff.email,
-            Staff.staff_role
+            Staff.staff_role,
+            Staff.staff_profile
         ).select_from(
             join(Teacher, Staff, Teacher.staff_id == Staff.staff_id)
         ).where(
@@ -199,6 +206,7 @@ class TeacherService:
         if row:
             teacher_data = {
                 "teacher_id": str(row.teacher_id),
+                "staff_id": str(row.staff_id) if row.staff_id else None,
                 "specialized": row.specialized,
                 "is_active": row.is_active,
                 "is_deleted": row.is_deleted,
@@ -206,7 +214,8 @@ class TeacherService:
                 "updated_at": row.updated_at.isoformat() if row.updated_at else None,
                 "staff_name": row.staff_name,
                 "staff_email": row.email,
-                "staff_role": row.staff_role
+                "staff_role": row.staff_role,
+                "staff_profile": row.staff_profile  # This should be included now
             }
             
             # Cache the result

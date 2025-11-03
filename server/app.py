@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db, test_db_connection
 from redis_client import test_redis_connection, redis_service
@@ -77,6 +78,16 @@ app.add_middleware(
 
 # Add logging middleware
 app.add_middleware(LoggingMiddleware)
+
+# Mount static files for uploads
+from pathlib import Path
+uploads_dir = Path("uploads")
+school_logs_dir = Path("school_logs")
+uploads_dir.mkdir(exist_ok=True)
+school_logs_dir.mkdir(exist_ok=True)
+
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/school_logs", StaticFiles(directory="school_logs"), name="school_logs")
 
 # Include routers
 app.include_router(school_router, prefix="/api/v1")
