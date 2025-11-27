@@ -9,11 +9,11 @@ class TestMark(Base):
     __tablename__ = "test_marks"
     
     test_mark_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.school_id"), nullable=False)
-    std_id = Column(UUID(as_uuid=True), ForeignKey("students.std_id"), nullable=False)
-    subj_id = Column(UUID(as_uuid=True), ForeignKey("subjects.subj_id"), nullable=False)
-    cls_id = Column(UUID(as_uuid=True), ForeignKey("classes.cls_id"), nullable=False)
-    academic_id = Column(UUID(as_uuid=True), ForeignKey("academic_years.academic_id"), nullable=False)
+    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.school_id"), nullable=False, index=True)
+    std_id = Column(UUID(as_uuid=True), ForeignKey("students.std_id"), nullable=False, index=True)
+    subj_id = Column(UUID(as_uuid=True), ForeignKey("subjects.subj_id"), nullable=False, index=True)
+    cls_id = Column(UUID(as_uuid=True), ForeignKey("classes.cls_id"), nullable=False, index=True)
+    academic_id = Column(UUID(as_uuid=True), ForeignKey("academic_years.academic_id"), nullable=False, index=True)
     term = Column(String(50), nullable=False)
     test_avg_mark = Column(Float, nullable=True)
     test_mark = Column(Float, nullable=False)

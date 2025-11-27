@@ -5,11 +5,14 @@ from uuid import UUID
 from database import get_db
 from services.inventory_service import InventoryService
 from schemas.inventory_schemas import InventoryCreate, InventoryUpdate, InventoryResponse
+from utils.auth_dependencies import get_current_staff
+from models.staff import Staff
 
 router = APIRouter(prefix="/inventory", tags=["Inventory Management"])
 
 @router.get("/", response_model=List[InventoryResponse])
-async def get_all_inventory(school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_all_inventory(school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Get all inventory records for a specific school"""
     try:
         inventory_service = InventoryService(db)
@@ -19,7 +22,8 @@ async def get_all_inventory(school_id: UUID, db: AsyncSession = Depends(get_db))
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.get("/{inv_id}", response_model=InventoryResponse)
-async def get_inventory_by_id(inv_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_inventory_by_id(inv_id: UUID, school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Get an inventory record by ID"""
     try:
         inventory_service = InventoryService(db)
@@ -33,7 +37,8 @@ async def get_inventory_by_id(inv_id: UUID, school_id: UUID, db: AsyncSession = 
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.post("/", response_model=InventoryResponse, status_code=status.HTTP_201_CREATED)
-async def create_inventory(inventory_data: InventoryCreate, db: AsyncSession = Depends(get_db)):
+async def create_inventory(inventory_data: InventoryCreate, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Create a new inventory record"""
     try:
         inventory_service = InventoryService(db)
@@ -45,7 +50,8 @@ async def create_inventory(inventory_data: InventoryCreate, db: AsyncSession = D
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.put("/{inv_id}", response_model=InventoryResponse)
-async def update_inventory(inv_id: UUID, school_id: UUID, inventory_data: InventoryUpdate, db: AsyncSession = Depends(get_db)):
+async def update_inventory(inv_id: UUID, school_id: UUID, inventory_data: InventoryUpdate, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Update an inventory record"""
     try:
         inventory_service = InventoryService(db)
@@ -61,7 +67,8 @@ async def update_inventory(inv_id: UUID, school_id: UUID, inventory_data: Invent
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.delete("/{inv_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_inventory(inv_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def delete_inventory(inv_id: UUID, school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Delete an inventory record"""
     try:
         inventory_service = InventoryService(db)

@@ -346,7 +346,7 @@ export default function ClassTeacherForm({
 							}}
 							onKeyDown={handleClassKeyDown}
 							placeholder="Search class by name or type..."
-							disabled={loading || availableClasses.length === 0}
+							disabled={loading}
 							className={`w-full px-4 py-2.5 border rounded-[3px] focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all ${
 								errors.cls_id ? 'border-red-500' : 'border-gray-300'
 							} disabled:bg-gray-100 disabled:cursor-not-allowed`}
@@ -424,7 +424,7 @@ export default function ClassTeacherForm({
 							}}
 							onKeyDown={handleTeacherKeyDown}
 							placeholder="Search teacher by name, email, or specialization..."
-							disabled={loading || availableTeachers.length === 0}
+							disabled={loading}
 							className={`w-full px-4 py-2.5 border rounded-[3px] focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all ${
 								errors.teacher_id ? 'border-red-500' : 'border-gray-300'
 							} disabled:bg-gray-100 disabled:cursor-not-allowed`}
@@ -505,7 +505,7 @@ export default function ClassTeacherForm({
 							}}
 							onKeyDown={handleSubjectKeyDown}
 							placeholder="Search subject by name..."
-							disabled={loading || availableSubjects.length === 0}
+							disabled={loading}
 							className={`w-full px-4 py-2.5 border rounded-[3px] focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all ${
 								errors.subj_id ? 'border-red-500' : 'border-gray-300'
 							} disabled:bg-gray-100 disabled:cursor-not-allowed`}

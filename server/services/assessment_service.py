@@ -57,6 +57,26 @@ class AssessmentService:
         return data
     
     async def get_by_id(self, ass_mark_id: UUID, school_id: UUID, as_dict: bool = False):
+        # First, check if record exists at all (without filters)
+        check_query = select(AssessmentMark).filter(AssessmentMark.ass_mark_id == ass_mark_id)
+        check_result = await self.db.execute(check_query)
+        check_row = check_result.scalar_one_or_none()
+        
+        if not check_row:
+            print(f"DEBUG: Record with ass_mark_id {ass_mark_id} does not exist in database")
+            return None
+        
+        # Check if it's deleted
+        if check_row.is_deleted:
+            print(f"DEBUG: Record {ass_mark_id} exists but is_deleted = True")
+            return None
+        
+        # Check if school_id matches
+        if str(check_row.school_id) != str(school_id):
+            print(f"DEBUG: Record {ass_mark_id} exists but school_id mismatch: DB={check_row.school_id}, Requested={school_id}")
+            return None
+        
+        # Now get with all relationships
         query = (
             select(AssessmentMark)
             .filter(
@@ -73,6 +93,7 @@ class AssessmentService:
         )
         result = await self.db.execute(query)
         row = result.scalar_one_or_none()
+        
         if row and as_dict:
             d = row.to_dict()
             d.update({
@@ -104,10 +125,18 @@ class AssessmentService:
         return row
     
     async def update(self, ass_mark_id: UUID, school_id: UUID, data: AssessmentMarkUpdate) -> Optional[AssessmentMark]:
+        print(f"DEBUG UPDATE: ass_mark_id={ass_mark_id}, school_id={school_id}")
+        print(f"DEBUG UPDATE: payload={data.dict(exclude_unset=True)}")
+        
         row = await self.get_by_id(ass_mark_id, school_id)
         if not row:
+            print(f"DEBUG UPDATE: Record not found by get_by_id")
             return None
+        
+        print(f"DEBUG UPDATE: Record found, proceeding with update")
         update_data = data.dict(exclude_unset=True)
+        print(f"DEBUG UPDATE: update_data={update_data}")
+        
         await self.db.execute(
             update(AssessmentMark)
             .where(AssessmentMark.ass_mark_id == ass_mark_id)
@@ -116,12 +145,37 @@ class AssessmentService:
         await self.db.commit()
         await self.db.refresh(row)
         await self._clear_cache(school_id)
+        print(f"DEBUG UPDATE: Update successful")
         return row
     
     async def delete(self, ass_mark_id: UUID, school_id: UUID) -> bool:
+        print(f"DEBUG DELETE: ass_mark_id={ass_mark_id}, school_id={school_id}")
+        
+        # First, check if record exists at all (without filters)
+        check_query = select(AssessmentMark).filter(AssessmentMark.ass_mark_id == ass_mark_id)
+        check_result = await self.db.execute(check_query)
+        check_row = check_result.scalar_one_or_none()
+        
+        if not check_row:
+            print(f"DEBUG DELETE: Record with ass_mark_id {ass_mark_id} does not exist in database")
+            return False
+        
+        # Check if it's already deleted
+        if check_row.is_deleted:
+            print(f"DEBUG DELETE: Record {ass_mark_id} is already deleted (is_deleted = True)")
+            return False
+        
+        # Check if school_id matches
+        if str(check_row.school_id) != str(school_id):
+            print(f"DEBUG DELETE: Record {ass_mark_id} exists but school_id mismatch: DB={check_row.school_id}, Requested={school_id}")
+            return False
+        
+        print(f"DEBUG DELETE: Record found, proceeding with soft delete")
         row = await self.get_by_id(ass_mark_id, school_id)
         if not row:
+            print(f"DEBUG DELETE: Record not found by get_by_id (should not happen)")
             return False
+        
         await self.db.execute(
             update(AssessmentMark)
             .where(AssessmentMark.ass_mark_id == ass_mark_id)
@@ -129,4 +183,5 @@ class AssessmentService:
         )
         await self.db.commit()
         await self._clear_cache(school_id)
+        print(f"DEBUG DELETE: Delete successful")
         return True

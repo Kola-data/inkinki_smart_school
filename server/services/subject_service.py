@@ -158,8 +158,13 @@ class SubjectService:
         return False
 
     async def _clear_subject_cache(self, school_id: UUID = None):
-        """Clear subject-related cache"""
+        """Clear subject-related cache including paginated entries"""
+        from utils.clear_cache import clear_cache_by_pattern
+        
         await redis_service.delete("subjects:all")
         # Clear school-specific cache if school_id is provided
         if school_id:
             await redis_service.delete(f"subjects:school:{school_id}")
+            # Clear all paginated cache entries for this school
+            pattern = f"subjects:school:{school_id}*"
+            await clear_cache_by_pattern(pattern)

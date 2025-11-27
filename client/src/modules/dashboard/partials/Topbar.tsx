@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Bars3Icon, XMarkIcon, Cog6ToothIcon, ArrowLeftOnRectangleIcon } from '@heroicons/react/24/outline';
+import { useNavigate } from 'react-router-dom';
+import { Bars3Icon, XMarkIcon, UserCircleIcon, ArrowLeftOnRectangleIcon } from '@heroicons/react/24/outline';
+import ProfileViewModal from '../components/ProfileViewModal';
 
 const API_BASE_URL = 'http://localhost:8000';
 
@@ -15,7 +16,9 @@ export default function Topbar({ onMenuClick, sidebarOpen = false }: TopbarProps
 	const [staffId, setStaffId] = useState<string | null>(null);
 	const [staffProfilePath, setStaffProfilePath] = useState<string | null>(null);
 	const [schoolName, setSchoolName] = useState('');
+	const [schoolId, setSchoolId] = useState<string | null>(null);
 	const [dropdownOpen, setDropdownOpen] = useState(false);
+	const [profileModalOpen, setProfileModalOpen] = useState(false);
 	const [imageError, setImageError] = useState(false);
 	const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -29,6 +32,7 @@ export default function Topbar({ onMenuClick, sidebarOpen = false }: TopbarProps
 				setStaffName(staff.staff_name || 'Admin');
 				setStaffId(staff.staff_id || null);
 				setStaffProfilePath(staff.staff_profile || null);
+				setSchoolId(staff.school_id || null);
 				setImageError(false); // Reset error state when staff data changes
 			} catch {
 				// Keep default
@@ -39,27 +43,63 @@ export default function Topbar({ onMenuClick, sidebarOpen = false }: TopbarProps
 			try {
 				const school = JSON.parse(storedSchool);
 				setSchoolName(school.school_name || '');
+				if (!schoolId) {
+					setSchoolId(school.school_id || null);
+				}
 			} catch {
 				// Keep default
 			}
 		}
 	}, []);
 
+	// Listen for staff update events
+	useEffect(() => {
+		const handleStaffUpdate = () => {
+			const storedStaff = localStorage.getItem('staff');
+			if (storedStaff) {
+				try {
+					const staff = JSON.parse(storedStaff);
+					setStaffName(staff.staff_name || 'Admin');
+					setStaffProfilePath(staff.staff_profile || null);
+					setImageError(false);
+				} catch {
+					// Ignore parse errors
+				}
+			}
+		};
+
+		window.addEventListener('staffUpdated', handleStaffUpdate);
+		return () => {
+			window.removeEventListener('staffUpdated', handleStaffUpdate);
+		};
+	}, []);
+
 	// Close dropdown when clicking outside
 	useEffect(() => {
 		function handleClickOutside(event: MouseEvent) {
-			if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-				setDropdownOpen(false);
+			const target = event.target as Node;
+			// Check if click is outside the dropdown container
+			// Also check if target is a button to allow button clicks to process
+			if (dropdownRef.current && !dropdownRef.current.contains(target)) {
+				// Only close if not clicking on a button
+				const element = target as HTMLElement;
+				if (element.tagName !== 'BUTTON' && !element.closest('button')) {
+					setDropdownOpen(false);
+				}
 			}
 		}
 
 		if (dropdownOpen) {
-			document.addEventListener('mousedown', handleClickOutside);
-		}
+			// Use a small delay to ensure button clicks process first
+			const timeoutId = setTimeout(() => {
+				document.addEventListener('click', handleClickOutside);
+			}, 0);
 
-		return () => {
-			document.removeEventListener('mousedown', handleClickOutside);
-		};
+			return () => {
+				clearTimeout(timeoutId);
+				document.removeEventListener('click', handleClickOutside);
+			};
+		}
 	}, [dropdownOpen]);
 
 	const getInitials = (name: string) => {
@@ -110,7 +150,7 @@ export default function Topbar({ onMenuClick, sidebarOpen = false }: TopbarProps
 	const profileImageUrl = getProfileImageUrl();
 
 	return (
-		<header className="h-16 bg-white shadow-sm border-b border-gray-200 flex items-center justify-between px-4 md:px-6 sticky top-0 z-50">
+		<header className={`h-16 bg-white shadow-sm border-b border-gray-200 flex items-center justify-between px-4 md:px-6 sticky top-0 ${sidebarOpen ? 'z-40' : 'z-50'} lg:z-50`}>
 			<div className="flex items-center gap-4">
 				{/* Menu/Close toggle button - shown when sidebar can be toggled (below lg breakpoint = 1024px) */}
 				<button
@@ -160,19 +200,30 @@ export default function Topbar({ onMenuClick, sidebarOpen = false }: TopbarProps
 						</button>
 
 						{dropdownOpen && (
-							<div className="absolute right-0 mt-2 w-48 bg-white rounded-[3px] shadow-lg border border-gray-200 py-1 z-50">
-								<Link
-									to="/dashboard/settings"
-									className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-									onClick={() => setDropdownOpen(false)}
+							<div className="absolute right-0 mt-2 w-48 bg-white rounded-[3px] shadow-lg border border-gray-200 py-1 z-[100]">
+								<button
+									type="button"
+									onClick={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										setDropdownOpen(false);
+										setProfileModalOpen(true);
+									}}
+									className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
 								>
 									<div className="flex items-center gap-2">
-										<Cog6ToothIcon className="w-4 h-4" />
-										<span>Settings</span>
+										<UserCircleIcon className="w-4 h-4" />
+										<span>Profile</span>
 									</div>
-								</Link>
+								</button>
 								<button
-									onClick={handleLogout}
+									type="button"
+									onClick={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										setDropdownOpen(false);
+										handleLogout();
+									}}
 									className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
 								>
 									<div className="flex items-center gap-2">
@@ -212,19 +263,30 @@ export default function Topbar({ onMenuClick, sidebarOpen = false }: TopbarProps
 					</button>
 
 					{dropdownOpen && (
-						<div className="absolute right-0 mt-2 w-48 bg-white rounded-[3px] shadow-lg border border-gray-200 py-1 z-50">
-							<Link
-								to="/dashboard/settings"
-								className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-								onClick={() => setDropdownOpen(false)}
+						<div className="absolute right-0 mt-2 w-48 bg-white rounded-[3px] shadow-lg border border-gray-200 py-1 z-[100]">
+							<button
+								type="button"
+								onClick={(e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									setDropdownOpen(false);
+									setProfileModalOpen(true);
+								}}
+								className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
 							>
 								<div className="flex items-center gap-2">
-									<Cog6ToothIcon className="w-4 h-4" />
-									<span>Settings</span>
+									<UserCircleIcon className="w-4 h-4" />
+									<span>Profile</span>
 								</div>
-							</Link>
+							</button>
 							<button
-								onClick={handleLogout}
+								type="button"
+								onClick={(e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									setDropdownOpen(false);
+									handleLogout();
+								}}
 								className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
 							>
 								<div className="flex items-center gap-2">
@@ -236,6 +298,14 @@ export default function Topbar({ onMenuClick, sidebarOpen = false }: TopbarProps
 					)}
 				</div>
 			</div>
+
+			{/* Profile Modal */}
+			<ProfileViewModal
+				isOpen={profileModalOpen}
+				onClose={() => setProfileModalOpen(false)}
+				staffId={staffId}
+				schoolId={schoolId}
+			/>
 		</header>
 	);
 }

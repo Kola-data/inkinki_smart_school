@@ -11,11 +11,18 @@ from .student import Student
 from .fee_type import FeeType
 from .fee_management import FeeManagement
 from .fee_detail import FeeDetail
-from .inventory import Inventory
+from .fee_invoice import FeeInvoice
+from .expense import Expense
 from .attendance import Attendance
 from .assessment import AssessmentMark
+from .test_mark import TestMark
 from .exam import ExamMark
 from .logs import Log
+from .password_reset import PasswordReset
+from .inventory import Inventory
+from .system_user import SystemUser
+from .payment_season import PaymentSeason
+from .school_payment_record import SchoolPaymentRecord
 
 __all__ = [
     "School",
@@ -30,9 +37,16 @@ __all__ = [
     "FeeType",
     "FeeManagement",
     "FeeDetail",
-    "Inventory",
+    "FeeInvoice",
+    "Expense",
     "Attendance",
     "AssessmentMark",
+    "TestMark",
     "ExamMark",
-    "Log"
+    "Log",
+    "PasswordReset",
+    "Inventory",
+    "SystemUser",
+    "PaymentSeason",
+    "SchoolPaymentRecord"
 ]

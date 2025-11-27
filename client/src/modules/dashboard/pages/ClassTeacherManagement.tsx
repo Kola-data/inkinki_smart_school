@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { getArrayFromResponse } from '../../../utils/apiHelpers';
 import {
 	AcademicCapIcon,
 	MagnifyingGlassIcon,
@@ -18,6 +19,7 @@ import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import ClassTeacherForm from '../components/ClassTeacherForm';
 import ClassTeacherViewModal from '../components/ClassTeacherViewModal';
+import { isTeacher } from '../../../utils/rolePermissions';
 
 interface ClassTeacherMember {
 	id: string;
@@ -179,14 +181,12 @@ export default function ClassTeacherManagement() {
 				setLoading(true);
 				const timestamp = new Date().getTime();
 				const { data } = await api.get(`/class-teachers/?school_id=${schoolId}&_t=${timestamp}`);
-				setAssignments(data || []);
+				setAssignments(getArrayFromResponse(data));
 			} catch (error: any) {
 				const errorMessage = error.response?.data?.detail || 'Failed to fetch teaching schedule';
 				if (error.response?.status !== 403) {
 					toast.error(errorMessage);
-				}
-				console.error('Error fetching teaching schedule:', error);
-			} finally {
+				}} finally {
 				setLoading(false);
 			}
 		};
@@ -204,16 +204,18 @@ export default function ClassTeacherManagement() {
 
 				// Fetch classes
 				const classesResponse = await api.get(`/classes/?school_id=${schoolId}&_t=${timestamp}`);
-				const classes: ClassOption[] = (classesResponse.data || []).map((c: any) => ({
+				const classesData = classesResponse.data?.items || classesResponse.data || [];
+				const classes: ClassOption[] = Array.isArray(classesData) ? classesData.map((c: any) => ({
 					cls_id: c.cls_id,
 					cls_name: c.cls_name,
 					cls_type: c.cls_type,
-				}));
+				})) : [];
 				setAvailableClasses(classes);
 
 				// Fetch teachers
 				const teachersResponse = await api.get(`/teachers/?school_id=${schoolId}&_t=${timestamp}`);
-				const teachers = (teachersResponse.data || []).filter((t: any) => t.is_active);
+				const teachersData = teachersResponse.data?.items || teachersResponse.data || [];
+				const teachers = Array.isArray(teachersData) ? teachersData.filter((t: any) => t.is_active) : [];
 				const mappedTeachers: TeacherOption[] = teachers.map((t: any) => ({
 					teacher_id: t.teacher_id,
 					staff_name: t.staff_name,
@@ -224,14 +226,13 @@ export default function ClassTeacherManagement() {
 
 				// Fetch subjects
 				const subjectsResponse = await api.get(`/subjects/?school_id=${schoolId}&_t=${timestamp}`);
-				const subjects: SubjectOption[] = (subjectsResponse.data || []).map((s: any) => ({
+				const subjectsData = subjectsResponse.data?.items || subjectsResponse.data || [];
+				const subjects: SubjectOption[] = Array.isArray(subjectsData) ? subjectsData.map((s: any) => ({
 					subj_id: s.subj_id,
 					subj_name: s.subj_name,
-				}));
+				})) : [];
 				setAvailableSubjects(subjects);
-			} catch (error: any) {
-				console.error('Error fetching options:', error);
-				setAvailableClasses([]);
+			} catch (error: any) {setAvailableClasses([]);
 				setAvailableTeachers([]);
 				setAvailableSubjects([]);
 			}
@@ -251,15 +252,17 @@ export default function ClassTeacherManagement() {
 				const timestamp = new Date().getTime();
 
 				const classesResponse = await api.get(`/classes/?school_id=${schoolId}&_t=${timestamp}`);
-				const classes: ClassOption[] = (classesResponse.data || []).map((c: any) => ({
+				const classesData = classesResponse.data?.items || classesResponse.data || [];
+				const classes: ClassOption[] = Array.isArray(classesData) ? classesData.map((c: any) => ({
 					cls_id: c.cls_id,
 					cls_name: c.cls_name,
 					cls_type: c.cls_type,
-				}));
+				})) : [];
 				setAvailableClasses(classes);
 
 				const teachersResponse = await api.get(`/teachers/?school_id=${schoolId}&_t=${timestamp}`);
-				const teachers = (teachersResponse.data || []).filter((t: any) => t.is_active);
+				const teachersData = teachersResponse.data?.items || teachersResponse.data || [];
+				const teachers = Array.isArray(teachersData) ? teachersData.filter((t: any) => t.is_active) : [];
 				const mappedTeachers: TeacherOption[] = teachers.map((t: any) => ({
 					teacher_id: t.teacher_id,
 					staff_name: t.staff_name,
@@ -269,14 +272,13 @@ export default function ClassTeacherManagement() {
 				setAvailableTeachers(mappedTeachers);
 
 				const subjectsResponse = await api.get(`/subjects/?school_id=${schoolId}&_t=${timestamp}`);
-				const subjects: SubjectOption[] = (subjectsResponse.data || []).map((s: any) => ({
+				const subjectsData = subjectsResponse.data?.items || subjectsResponse.data || [];
+				const subjects: SubjectOption[] = Array.isArray(subjectsData) ? subjectsData.map((s: any) => ({
 					subj_id: s.subj_id,
 					subj_name: s.subj_name,
-				}));
+				})) : [];
 				setAvailableSubjects(subjects);
-			} catch (error: any) {
-				console.error('Error fetching options:', error);
-			}
+			} catch (error: any) {}
 		};
 
 		if (editModalOpen && schoolId) {
@@ -484,17 +486,32 @@ export default function ClassTeacherManagement() {
 
 	// Refresh assignments data with cache busting
 	const refreshAssignments = async () => {
-		if (!schoolId) return;
+		if (!schoolId) {
+			console.warn('Cannot refresh assignments: schoolId is missing');
+			return;
+		}
 
 		try {
 			const timestamp = new Date().getTime();
 			const { data } = await api.get(`/class-teachers/?school_id=${schoolId}&_t=${timestamp}`);
-			setAssignments(data || []);
+			
+			// Handle paginated response
+			let newAssignmentsData: ClassTeacherMember[] = [];
+			if (data && Array.isArray(data.items)) {
+				newAssignmentsData = data.items;
+			} else if (Array.isArray(data)) {
+				newAssignmentsData = data;
+			} else {
+				newAssignmentsData = getArrayFromResponse(data);
+			}
+			
+			// Force state update by creating a new array reference
+			setAssignments([...newAssignmentsData]);
 			setCurrentPage(1);
 		} catch (error: any) {
-			const errorMessage = error.response?.data?.detail || 'Failed to refresh assignments data';
+			console.error('Refresh assignments error:', error);
+			const errorMessage = error.response?.data?.detail || error.message || 'Failed to refresh assignments data';
 			toast.error(errorMessage);
-			console.error('Error refreshing assignments:', error);
 		}
 	};
 
@@ -518,6 +535,8 @@ export default function ClassTeacherManagement() {
 			toast.success('Teaching schedule entry created successfully!');
 			setCreateConfirmOpen(false);
 			setFormDataToSubmit(null);
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			await refreshAssignments();
 		} catch (error: any) {
 			toast.error(error.response?.data?.detail || 'Failed to create schedule entry');
@@ -544,6 +563,8 @@ export default function ClassTeacherManagement() {
 			setUpdateConfirmOpen(false);
 			setSelectedAssignment(null);
 			setFormDataToSubmit(null);
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			await refreshAssignments();
 		} catch (error: any) {
 			toast.error(error.response?.data?.detail || 'Failed to update schedule entry');
@@ -562,6 +583,8 @@ export default function ClassTeacherManagement() {
 			toast.success('Teaching schedule entry deleted successfully!');
 			setDeleteConfirmOpen(false);
 			setSelectedAssignment(null);
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			await refreshAssignments();
 		} catch (error: any) {
 			toast.error(error.response?.data?.detail || 'Failed to delete schedule entry');
@@ -597,7 +620,7 @@ export default function ClassTeacherManagement() {
 		return (
 			<div className="flex bg-gray-50 min-h-screen">
 				<Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-				<div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+				<div className="flex-1 flex flex-col min-h-screen overflow-hidden lg:ml-64">
 					<Topbar onMenuClick={toggleSidebar} sidebarOpen={sidebarOpen} />
 					<main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
 						<div className="text-center">
@@ -614,7 +637,7 @@ export default function ClassTeacherManagement() {
 		return (
 			<div className="flex bg-gray-50 min-h-screen">
 				<Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-				<div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+				<div className="flex-1 flex flex-col min-h-screen overflow-hidden lg:ml-64">
 					<Topbar onMenuClick={toggleSidebar} sidebarOpen={sidebarOpen} />
 					<main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
 						<div className="text-center">
@@ -629,7 +652,7 @@ export default function ClassTeacherManagement() {
 	return (
 		<div className="flex bg-gray-50 min-h-screen">
 			<Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-			<div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+			<div className="flex-1 flex flex-col min-h-screen overflow-hidden lg:ml-64">
 				<Topbar onMenuClick={toggleSidebar} sidebarOpen={sidebarOpen} />
 				<main className="flex-1 overflow-y-auto p-6 space-y-6">
 					{/* Header */}
@@ -638,24 +661,29 @@ export default function ClassTeacherManagement() {
 							<h1 className="text-3xl font-bold text-gray-900">Teaching Schedule</h1>
 							<p className="text-gray-600 mt-1">Assign teachers to subjects and classes</p>
 						</div>
-						<button
-							onClick={openCreateModal}
-							className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-[3px] shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
-						>
-							<PlusIcon className="w-5 h-5" />
-							<span>Add Schedule</span>
-						</button>
+						{!isTeacher() && (
+							<button
+								onClick={openCreateModal}
+								className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-[3px] shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
+							>
+								<PlusIcon className="w-5 h-5" />
+								<span>Add Schedule</span>
+							</button>
+						)}
 					</div>
 
-					{/* Analytics Card */}
-					<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6">
-						<div className="flex items-center gap-3">
-							<div className="p-3 bg-blue-100 rounded-[3px]">
-								<AcademicCapIcon className="w-6 h-6 text-blue-600" />
-							</div>
-							<div>
-								<p className="text-sm font-medium text-gray-600">Total Schedule Entries</p>
-								<p className="text-2xl font-bold text-gray-900 mt-1">{analytics.total}</p>
+					{/* Analytics Cards */}
+					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+						<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6 relative overflow-hidden">
+							<div className="absolute top-0 left-0 right-0 h-1 bg-blue-600"></div>
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="text-sm font-medium text-gray-600">Total Schedule Entries</p>
+									<p className="text-3xl font-bold text-gray-900 mt-2">{analytics.total}</p>
+								</div>
+								<div className="p-3 bg-blue-100 rounded-[3px]">
+									<AcademicCapIcon className="w-6 h-6 text-blue-600" />
+								</div>
 							</div>
 						</div>
 					</div>
@@ -722,7 +750,7 @@ export default function ClassTeacherManagement() {
 										<input
 											ref={classFilterInputRef}
 											type="text"
-											value={selectedClassFilter ? selectedClassFilter.cls_name : classFilterQuery}
+											value={selectedClassFilter ? (selectedClassFilter.cls_name || '') : classFilterQuery}
 											onChange={(e) => {
 												setClassFilterQuery(e.target.value);
 												setShowClassFilterDropdown(true);
@@ -785,7 +813,7 @@ export default function ClassTeacherManagement() {
 										<input
 											ref={teacherFilterInputRef}
 											type="text"
-											value={selectedTeacherFilter ? selectedTeacherFilter.teacher_name : teacherFilterQuery}
+											value={selectedTeacherFilter ? (selectedTeacherFilter.teacher_name || '') : teacherFilterQuery}
 											onChange={(e) => {
 												setTeacherFilterQuery(e.target.value);
 												setShowTeacherFilterDropdown(true);
@@ -848,7 +876,7 @@ export default function ClassTeacherManagement() {
 										<input
 											ref={subjectFilterInputRef}
 											type="text"
-											value={selectedSubjectFilter ? selectedSubjectFilter.subj_name : subjectFilterQuery}
+											value={selectedSubjectFilter ? (selectedSubjectFilter.subj_name || '') : subjectFilterQuery}
 											onChange={(e) => {
 												setSubjectFilterQuery(e.target.value);
 												setShowSubjectFilterDropdown(true);
@@ -981,20 +1009,24 @@ export default function ClassTeacherManagement() {
 														>
 															<EyeIcon className="w-5 h-5" />
 														</button>
-														<button
-															onClick={() => openEditModal(assignment)}
-															className="p-2 text-green-600 hover:bg-green-50 rounded-[3px] transition-colors"
-															title="Edit"
-														>
-															<PencilIcon className="w-5 h-5" />
-														</button>
-														<button
-															onClick={() => openDeleteConfirm(assignment)}
-															className="p-2 text-red-600 hover:bg-red-50 rounded-[3px] transition-colors"
-															title="Delete"
-														>
-															<TrashIcon className="w-5 h-5" />
-														</button>
+														{!isTeacher() && (
+															<>
+																<button
+																	onClick={() => openEditModal(assignment)}
+																	className="p-2 text-green-600 hover:bg-green-50 rounded-[3px] transition-colors"
+																	title="Edit"
+																>
+																	<PencilIcon className="w-5 h-5" />
+																</button>
+																<button
+																	onClick={() => openDeleteConfirm(assignment)}
+																	className="p-2 text-red-600 hover:bg-red-50 rounded-[3px] transition-colors"
+																	title="Delete"
+																>
+																	<TrashIcon className="w-5 h-5" />
+																</button>
+															</>
+														)}
 													</div>
 												</td>
 											</tr>
@@ -1053,8 +1085,8 @@ export default function ClassTeacherManagement() {
 			<Modal
 				isOpen={createModalOpen}
 				onClose={() => setCreateModalOpen(false)}
-						title="Add to Teaching Schedule"
-				size="lg"
+					title="Add to Teaching Schedule"
+				size="xl"
 			>
 				<ClassTeacherForm
 					availableClasses={availableClasses}
@@ -1074,7 +1106,7 @@ export default function ClassTeacherManagement() {
 					setSelectedAssignment(null);
 				}}
 				title="Edit Schedule Entry"
-				size="lg"
+				size="xl"
 			>
 				{selectedAssignment && (
 					<ClassTeacherForm
@@ -1116,7 +1148,7 @@ export default function ClassTeacherManagement() {
 				title="Create Schedule Entry"
 				message="Are you sure you want to create this teaching schedule entry?"
 				confirmText="Create"
-				confirmColor="green"
+				type="info"
 				loading={formLoading}
 			/>
 
@@ -1130,7 +1162,7 @@ export default function ClassTeacherManagement() {
 				title="Update Schedule Entry"
 				message="Are you sure you want to update this teaching schedule entry?"
 				confirmText="Update"
-				confirmColor="green"
+				type="info"
 				loading={formLoading}
 			/>
 
@@ -1144,7 +1176,7 @@ export default function ClassTeacherManagement() {
 				title="Delete Schedule Entry"
 				message="Are you sure you want to delete this teaching schedule entry? This action cannot be undone."
 				confirmText="Delete"
-				confirmColor="red"
+				type="danger"
 				loading={deleteLoading}
 			/>
 		</div>

@@ -335,7 +335,7 @@ export default function ClassForm({ classItem, availableTeachers, onSubmit, onCa
 							}}
 							onKeyDown={handleKeyDown}
 							placeholder="Search teacher by name, email, or specialization..."
-							disabled={loading || availableTeachers.length === 0}
+							disabled={loading}
 							className={`w-full px-4 py-2.5 border rounded-[3px] focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all ${
 								errors.cls_manager ? 'border-red-500' : 'border-gray-300'
 							} disabled:bg-gray-100 disabled:cursor-not-allowed`}
@@ -407,7 +407,7 @@ export default function ClassForm({ classItem, availableTeachers, onSubmit, onCa
 				<button
 					type="submit"
 					className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-[3px] hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-					disabled={loading || (mode === 'create' && availableTeachers.length === 0)}
+					disabled={loading}
 				>
 					{loading ? 'Saving...' : mode === 'create' ? 'Create' : 'Update'}
 				</button>

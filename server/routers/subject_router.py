@@ -11,11 +11,14 @@ from schemas.subject_schemas import (
     SubjectSoftDelete
 )
 from utils.school_utils import verify_school_active
+from utils.auth_dependencies import get_current_staff
+from models.staff import Staff
 
 router = APIRouter(prefix="/subjects", tags=["Subjects"])
 
 @router.get("/", response_model=List[SubjectResponse])
-async def get_all_subjects(school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_all_subjects(school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Get all subjects for a specific school"""
     try:
         await verify_school_active(school_id, db)
@@ -29,7 +32,8 @@ async def get_all_subjects(school_id: UUID, db: AsyncSession = Depends(get_db)):
         )
 
 @router.get("/{subj_id}", response_model=SubjectResponse)
-async def get_subject_by_id(subj_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_subject_by_id(subj_id: UUID, school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Get a subject by ID for a specific school"""
     try:
         await verify_school_active(school_id, db)
@@ -50,7 +54,8 @@ async def get_subject_by_id(subj_id: UUID, school_id: UUID, db: AsyncSession = D
         )
 
 @router.post("/", response_model=SubjectResponse, status_code=status.HTTP_201_CREATED)
-async def create_subject(subject_data: SubjectCreate, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def create_subject(subject_data: SubjectCreate, school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Create a new subject for a specific school"""
     try:
         await verify_school_active(school_id, db)
@@ -64,7 +69,8 @@ async def create_subject(subject_data: SubjectCreate, school_id: UUID, db: Async
         )
 
 @router.put("/{subj_id}", response_model=SubjectResponse)
-async def update_subject(subj_id: UUID, subject_data: SubjectUpdate, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def update_subject(subj_id: UUID, subject_data: SubjectUpdate, school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Update a subject for a specific school"""
     try:
         await verify_school_active(school_id, db)
@@ -85,7 +91,8 @@ async def update_subject(subj_id: UUID, subject_data: SubjectUpdate, school_id: 
         )
 
 @router.delete("/{subj_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def soft_delete_subject(subj_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def soft_delete_subject(subj_id: UUID, school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Soft delete a subject for a specific school"""
     try:
         await verify_school_active(school_id, db)

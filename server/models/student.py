@@ -9,15 +9,15 @@ class Student(Base):
     __tablename__ = "students"
     
     std_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.school_id"), nullable=False)
-    par_id = Column(UUID(as_uuid=True), ForeignKey("parents.par_id"), nullable=False)
+    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.school_id"), nullable=False, index=True)
+    par_id = Column(UUID(as_uuid=True), ForeignKey("parents.par_id"), nullable=False, index=True)
     std_code = Column(String(255), nullable=True, unique=True, index=True)
     std_name = Column(String(255), nullable=False)
     std_dob = Column(String(20))  # Using string as specified
     std_gender = Column(String(10))
     previous_school = Column(String(255))
-    started_class = Column(UUID(as_uuid=True), ForeignKey("classes.cls_id"))
-    current_class = Column(UUID(as_uuid=True), ForeignKey("classes.cls_id"))
+    started_class = Column(UUID(as_uuid=True), ForeignKey("classes.cls_id"), index=True)
+    current_class = Column(UUID(as_uuid=True), ForeignKey("classes.cls_id"), index=True)
     status = Column(String(50))
     is_deleted = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

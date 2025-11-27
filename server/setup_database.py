@@ -34,7 +34,7 @@ async def wait_for_database():
 
 async def setup_database():
     """Set up the database with all models"""
-    print("🗄️  Setting up Inkinki Smart School Database")
+    print("🗄️  Setting up Inkingi Smart School Database")
     print("=" * 50)
     print(f"Database: {settings.DATABASE_URL}")
     print(f"Redis: {settings.REDIS_URL}")

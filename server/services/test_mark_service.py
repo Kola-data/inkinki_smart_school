@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func as sql_func
 from sqlalchemy.orm import selectinload
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from uuid import UUID
 from datetime import datetime
 
@@ -19,6 +19,8 @@ from schemas.test_mark_schemas import (
     TestMarkBulkCreate,
 )
 
+from utils.cache_utils import get_paginated_cache, set_paginated_cache
+
 from redis_client import redis_service
 from config import settings
 
@@ -30,7 +32,17 @@ class TestMarkService:
         self.db = db
 
     async def _clear_cache(self, school_id: UUID):
+        """Clear test marks cache including paginated entries"""
+        from utils.clear_cache import clear_cache_by_pattern
+        
+        # Clear the base cache key
         await redis_service.delete(f"testmarks:school:{school_id}")
+        
+        # Clear all paginated cache entries for this school
+        pattern = f"testmarks:school:{school_id}*"
+        await clear_cache_by_pattern(pattern)
+        
+        # Clear other related cache patterns
         await redis_service.delete(f"testmarks:student:*")
         await redis_service.delete(f"testmarks:subject:*")
         await redis_service.delete(f"testmarks:class:*")
@@ -90,15 +102,27 @@ class TestMarkService:
             if not res.scalar_one_or_none():
                 raise ValueError("Academic year not found in school")
 
-    async def get_all(self, school_id: UUID, filters: Optional[TestMarkFilter] = None) -> List[dict]:
-        cache_key = f"testmarks:school:{school_id}"
+    async def get_all(
+        self, 
+        school_id: UUID, 
+        filters: Optional[TestMarkFilter] = None, 
+        academic_id: Optional[UUID] = None,
+        page: int = 1,
+        page_size: int = 50
+    ) -> Tuple[List[dict], int]:
+        base_cache_key = f"testmarks:school:{school_id}"
+        cache_filters = {}
+        if academic_id:
+            cache_filters['academic_id'] = str(academic_id)
         if filters:
-            cache_key += f":{hash(str(filters.dict()))}"
+            cache_filters['filters'] = str(hash(str(filters.dict())))
+        
+        # Try to get from paginated cache
+        cached_result = await get_paginated_cache(base_cache_key, page, page_size, cache_filters)
+        if cached_result:
+            return cached_result
 
-        cached = await redis_service.get(cache_key)
-        if cached:
-            return cached
-
+        # Build base query
         query = (
             select(TestMark)
             .filter(TestMark.school_id == school_id, TestMark.is_deleted == False)
@@ -110,6 +134,12 @@ class TestMarkService:
             )
         )
 
+        # Apply academic_id filter if provided directly (takes precedence over filters.academic_id)
+        if academic_id:
+            query = query.filter(TestMark.academic_id == academic_id)
+        elif filters and filters.academic_id:
+            query = query.filter(TestMark.academic_id == filters.academic_id)
+
         if filters:
             if filters.std_id:
                 query = query.filter(TestMark.std_id == filters.std_id)
@@ -117,8 +147,6 @@ class TestMarkService:
                 query = query.filter(TestMark.subj_id == filters.subj_id)
             if filters.cls_id:
                 query = query.filter(TestMark.cls_id == filters.cls_id)
-            if filters.academic_id:
-                query = query.filter(TestMark.academic_id == filters.academic_id)
             if filters.term:
                 query = query.filter(TestMark.term == filters.term)
             if filters.status is not None:
@@ -126,7 +154,18 @@ class TestMarkService:
             if filters.is_published is not None:
                 query = query.filter(TestMark.is_published == filters.is_published)
 
-        result = await self.db.execute(query)
+        # Get total count
+        count_query = select(sql_func.count(TestMark.test_mark_id)).select_from(
+            query.subquery()
+        )
+        count_result = await self.db.execute(count_query)
+        total = count_result.scalar() or 0
+
+        # Apply pagination
+        offset = (page - 1) * page_size
+        paginated_query = query.offset(offset).limit(page_size)
+
+        result = await self.db.execute(paginated_query)
         rows = result.scalars().all()
 
         data = []
@@ -142,8 +181,9 @@ class TestMarkService:
             )
             data.append(d)
 
-        await redis_service.set(cache_key, data, expire=settings.REDIS_CACHE_TTL)
-        return data
+        # Cache the result
+        await set_paginated_cache(base_cache_key, page, page_size, data, total, cache_filters)
+        return data, total
 
     async def get_by_id(self, test_mark_id: UUID, school_id: UUID, as_dict: bool = False):
         query = (
@@ -190,7 +230,15 @@ class TestMarkService:
         )
         exists = (await self.db.execute(dup_q)).scalar_one_or_none()
         if exists:
-            raise ValueError("Test mark already exists for the same student/subject/class/academic/term")
+            # Get student name for better error message
+            student_res = await self.db.execute(
+                select(Student).filter(Student.std_id == payload.std_id)
+            )
+            student = student_res.scalar_one_or_none()
+            student_name = student.std_name if student else "Unknown"
+            raise ValueError(
+                f"A test mark already exists for {student_name} in this subject/class/academic year/term combination"
+            )
 
         row = TestMark(**payload.dict())
         self.db.add(row)
@@ -217,6 +265,8 @@ class TestMarkService:
         )
 
         records: List[TestMark] = []
+        duplicate_students = []
+        
         for item in payload.test_marks:
             # Validate each student
             await self._validate_fk(
@@ -229,6 +279,27 @@ class TestMarkService:
                 ),
                 school_id_fallback=payload.school_id,
             )
+
+            # Check for duplicate test mark (same student, subject, class, academic year, term)
+            dup_q = select(TestMark).filter(
+                TestMark.school_id == payload.school_id,
+                TestMark.std_id == item["std_id"],
+                TestMark.subj_id == payload.subj_id,
+                TestMark.cls_id == payload.cls_id,
+                TestMark.academic_id == payload.academic_id,
+                TestMark.term == payload.term,
+                TestMark.is_deleted == False,
+            )
+            exists = (await self.db.execute(dup_q)).scalar_one_or_none()
+            if exists:
+                # Get student name for better error message
+                student_res = await self.db.execute(
+                    select(Student).filter(Student.std_id == item["std_id"])
+                )
+                student = student_res.scalar_one_or_none()
+                student_name = student.std_name if student else "Unknown"
+                duplicate_students.append(student_name)
+                continue  # Skip this record
 
             rec = TestMark(
                 school_id=payload.school_id,
@@ -243,6 +314,14 @@ class TestMarkService:
                 is_published=False,
             )
             records.append(rec)
+
+        if duplicate_students:
+            raise ValueError(
+                f"Test marks already exist for the following students in this subject/class/academic year/term: {', '.join(duplicate_students)}"
+            )
+
+        if not records:
+            raise ValueError("No valid test marks to create (all duplicates)")
 
         self.db.add_all(records)
         await self.db.commit()
@@ -263,6 +342,37 @@ class TestMarkService:
         if update_data:
             await self._validate_fk(payload, school_id_fallback=school_id)
 
+        # Check for duplicate if any key fields are being updated
+        # Determine the values that will be used after update
+        final_std_id = update_data.get("std_id", row.std_id)
+        final_subj_id = update_data.get("subj_id", row.subj_id)
+        final_cls_id = update_data.get("cls_id", row.cls_id)
+        final_academic_id = update_data.get("academic_id", row.academic_id)
+        final_term = update_data.get("term", row.term)
+
+        # Check if another record exists with the same combination (excluding current record)
+        dup_q = select(TestMark).filter(
+            TestMark.school_id == school_id,
+            TestMark.std_id == final_std_id,
+            TestMark.subj_id == final_subj_id,
+            TestMark.cls_id == final_cls_id,
+            TestMark.academic_id == final_academic_id,
+            TestMark.term == final_term,
+            TestMark.test_mark_id != test_mark_id,  # Exclude current record
+            TestMark.is_deleted == False,
+        )
+        exists = (await self.db.execute(dup_q)).scalar_one_or_none()
+        if exists:
+            # Get student name for better error message
+            student_res = await self.db.execute(
+                select(Student).filter(Student.std_id == final_std_id)
+            )
+            student = student_res.scalar_one_or_none()
+            student_name = student.std_name if student else "Unknown"
+            raise ValueError(
+                f"A test mark already exists for {student_name} in this subject/class/academic year/term combination"
+            )
+
         await self.db.execute(
             update(TestMark).where(TestMark.test_mark_id == test_mark_id).values(**update_data)
         )
@@ -270,7 +380,17 @@ class TestMarkService:
         await self.db.refresh(row)
 
         await self._clear_cache(school_id)
-        return row
+        # Return as dict with related fields
+        result = row.to_dict()
+        if row.student:
+            result['student_name'] = row.student.std_name
+        if row.subject:
+            result['subject_name'] = row.subject.subj_name
+        if row.class_obj:
+            result['class_name'] = row.class_obj.cls_name
+        if row.academic_year:
+            result['academic_year_name'] = row.academic_year.academic_name
+        return result
 
     async def delete(self, test_mark_id: UUID, school_id: UUID) -> bool:
         row = await self.get_by_id(test_mark_id, school_id)
@@ -284,6 +404,34 @@ class TestMarkService:
 
         await self._clear_cache(school_id)
         return True
+
+    async def publish_bulk(self, test_mark_ids: List[UUID], school_id: UUID, is_published: bool = True) -> int:
+        """Publish or unpublish multiple test marks"""
+        if not test_mark_ids:
+            return 0
+        
+        # Verify all marks belong to the school
+        query = select(TestMark).filter(
+            TestMark.test_mark_id.in_(test_mark_ids),
+            TestMark.school_id == school_id,
+            TestMark.is_deleted == False
+        )
+        result = await self.db.execute(query)
+        rows = result.scalars().all()
+        
+        if len(rows) != len(test_mark_ids):
+            raise ValueError("Some test marks were not found or do not belong to this school")
+        
+        # Update all marks
+        await self.db.execute(
+            update(TestMark)
+            .where(TestMark.test_mark_id.in_(test_mark_ids))
+            .values(is_published=is_published, updated_at=datetime.utcnow())
+        )
+        await self.db.commit()
+        
+        await self._clear_cache(school_id)
+        return len(rows)
 
     async def summary(self, school_id: UUID, filters: Optional[TestMarkFilter] = None) -> dict:
         records = await self.get_all(school_id, filters)

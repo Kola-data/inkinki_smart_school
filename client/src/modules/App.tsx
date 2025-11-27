@@ -2,15 +2,31 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import Dashboard from './dashboard/Dashboard';
 import Login from './auth/Login';
 import Register from './auth/Register';
+import ResetPasswordRequest from './auth/ResetPasswordRequest';
+import ResetPasswordConfirm from './auth/ResetPasswordConfirm';
 import Sidebar from './dashboard/partials/Sidebar';
 import Topbar from './dashboard/partials/Topbar';
 import ProtectedRoute from '../components/ProtectedRoute';
+import RoleProtectedRoute from '../components/RoleProtectedRoute';
+import SystemProtectedRoute from '../components/SystemProtectedRoute';
+import { MODULES } from '../utils/rolePermissions';
 import StaffManagement from './dashboard/pages/StaffManagement';
 import TeacherManagement from './dashboard/pages/TeacherManagement';
 import AcademicYearManagement from './dashboard/pages/AcademicYearManagement';
 import SubjectManagement from './dashboard/pages/SubjectManagement';
 import ClassManagement from './dashboard/pages/ClassManagement';
 import ClassTeacherManagement from './dashboard/pages/ClassTeacherManagement';
+import ParentManagement from './dashboard/pages/ParentManagement';
+import StudentManagement from './dashboard/pages/StudentManagement';
+import FeeTypeManagement from './dashboard/pages/FeeTypeManagement';
+import FeeManagement from './dashboard/pages/FeeManagement';
+import ExpenseManagement from './dashboard/pages/ExpenseManagement';
+import AttendanceManagement from './dashboard/pages/AttendanceManagement';
+import TestMarksManagement from './dashboard/pages/TestMarksManagement';
+import ExamMarksManagement from './dashboard/pages/ExamMarksManagement';
+import StudentReports from './dashboard/pages/StudentReports';
+import SystemLogin from './system/auth/SystemLogin';
+import SystemDashboard from './system/dashboard/SystemDashboard';
 import { useState } from 'react';
 
 // Placeholder components for dashboard routes
@@ -49,11 +65,15 @@ export default function App() {
 				<Route path="/" element={<Navigate to="/login" replace />} />
 				<Route path="/login" element={<Login />} />
 				<Route path="/register" element={<Register />} />
+				<Route path="/reset-password" element={<ResetPasswordRequest />} />
+				<Route path="/reset-password/confirm" element={<ResetPasswordConfirm />} />
 				<Route
 					path="/dashboard"
 					element={
 						<ProtectedRoute>
-							<Dashboard />
+							<RoleProtectedRoute module={MODULES.DASHBOARD}>
+								<Dashboard />
+							</RoleProtectedRoute>
 						</ProtectedRoute>
 					}
 				/>
@@ -61,7 +81,9 @@ export default function App() {
 					path="/dashboard/students"
 					element={
 						<ProtectedRoute>
-							<DashboardPlaceholder title="Students" />
+							<RoleProtectedRoute module={MODULES.STUDENTS}>
+								<StudentManagement />
+							</RoleProtectedRoute>
 						</ProtectedRoute>
 					}
 				/>
@@ -69,7 +91,9 @@ export default function App() {
 					path="/dashboard/staff"
 					element={
 						<ProtectedRoute>
-							<StaffManagement />
+							<RoleProtectedRoute module={MODULES.STAFF}>
+								<StaffManagement />
+							</RoleProtectedRoute>
 						</ProtectedRoute>
 					}
 				/>
@@ -77,7 +101,9 @@ export default function App() {
 					path="/dashboard/teachers"
 					element={
 						<ProtectedRoute>
-							<TeacherManagement />
+							<RoleProtectedRoute module={MODULES.TEACHERS}>
+								<TeacherManagement />
+							</RoleProtectedRoute>
 						</ProtectedRoute>
 					}
 				/>
@@ -85,7 +111,9 @@ export default function App() {
 					path="/dashboard/classes"
 					element={
 						<ProtectedRoute>
-							<ClassManagement />
+							<RoleProtectedRoute module={MODULES.CLASSES}>
+								<ClassManagement />
+							</RoleProtectedRoute>
 						</ProtectedRoute>
 					}
 				/>
@@ -93,7 +121,9 @@ export default function App() {
 					path="/dashboard/class-teachers"
 					element={
 						<ProtectedRoute>
-							<ClassTeacherManagement />
+							<RoleProtectedRoute module={MODULES.CLASS_TEACHERS}>
+								<ClassTeacherManagement />
+							</RoleProtectedRoute>
 						</ProtectedRoute>
 					}
 				/>
@@ -101,7 +131,9 @@ export default function App() {
 					path="/dashboard/parents"
 					element={
 						<ProtectedRoute>
-							<DashboardPlaceholder title="Parents" />
+							<RoleProtectedRoute module={MODULES.PARENTS}>
+								<ParentManagement />
+							</RoleProtectedRoute>
 						</ProtectedRoute>
 					}
 				/>
@@ -109,7 +141,29 @@ export default function App() {
 					path="/dashboard/fees"
 					element={
 						<ProtectedRoute>
-							<DashboardPlaceholder title="Fee Management" />
+							<RoleProtectedRoute module={MODULES.FEE_TYPES}>
+								<FeeTypeManagement />
+							</RoleProtectedRoute>
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/dashboard/fee-types"
+					element={
+						<ProtectedRoute>
+							<RoleProtectedRoute module={MODULES.FEE_TYPES}>
+								<FeeTypeManagement />
+							</RoleProtectedRoute>
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/dashboard/fee-management"
+					element={
+						<ProtectedRoute>
+							<RoleProtectedRoute module={MODULES.FEE_MANAGEMENT}>
+								<FeeManagement />
+							</RoleProtectedRoute>
 						</ProtectedRoute>
 					}
 				/>
@@ -117,7 +171,9 @@ export default function App() {
 					path="/dashboard/attendance"
 					element={
 						<ProtectedRoute>
-							<DashboardPlaceholder title="Attendance" />
+							<RoleProtectedRoute module={MODULES.ATTENDANCE}>
+								<AttendanceManagement />
+							</RoleProtectedRoute>
 						</ProtectedRoute>
 					}
 				/>
@@ -125,7 +181,9 @@ export default function App() {
 					path="/dashboard/subjects"
 					element={
 						<ProtectedRoute>
-							<SubjectManagement />
+							<RoleProtectedRoute module={MODULES.SUBJECTS}>
+								<SubjectManagement />
+							</RoleProtectedRoute>
 						</ProtectedRoute>
 					}
 				/>
@@ -133,7 +191,49 @@ export default function App() {
 					path="/dashboard/academic-years"
 					element={
 						<ProtectedRoute>
-							<AcademicYearManagement />
+							<RoleProtectedRoute module={MODULES.ACADEMIC_YEARS}>
+								<AcademicYearManagement />
+							</RoleProtectedRoute>
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/dashboard/expenses"
+					element={
+						<ProtectedRoute>
+							<RoleProtectedRoute module={MODULES.EXPENSES}>
+								<ExpenseManagement />
+							</RoleProtectedRoute>
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/dashboard/test-marks"
+					element={
+						<ProtectedRoute>
+							<RoleProtectedRoute module={MODULES.TEST_MARKS}>
+								<TestMarksManagement />
+							</RoleProtectedRoute>
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/dashboard/exam-marks"
+					element={
+						<ProtectedRoute>
+							<RoleProtectedRoute module={MODULES.EXAM_MARKS}>
+								<ExamMarksManagement />
+							</RoleProtectedRoute>
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/dashboard/student-reports"
+					element={
+						<ProtectedRoute>
+							<RoleProtectedRoute module={MODULES.STUDENTS}>
+								<StudentReports />
+							</RoleProtectedRoute>
 						</ProtectedRoute>
 					}
 				/>
@@ -141,8 +241,21 @@ export default function App() {
 					path="/dashboard/settings"
 					element={
 						<ProtectedRoute>
-							<DashboardPlaceholder title="Settings" />
+							<RoleProtectedRoute module={MODULES.PROFILE}>
+								<DashboardPlaceholder title="Settings" />
+							</RoleProtectedRoute>
 						</ProtectedRoute>
+					}
+				/>
+				
+				{/* System Management Routes */}
+				<Route path="/system/login" element={<SystemLogin />} />
+				<Route
+					path="/system/dashboard"
+					element={
+						<SystemProtectedRoute>
+							<SystemDashboard />
+						</SystemProtectedRoute>
 					}
 				/>
 			</Routes>

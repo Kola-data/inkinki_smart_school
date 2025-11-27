@@ -297,7 +297,9 @@ class AcademicYearService:
         await self.db.commit()
     
     async def _clear_academic_year_cache(self, school_id: UUID = None):
-        """Clear academic year-related cache"""
+        """Clear academic year-related cache including paginated entries"""
+        from utils.clear_cache import clear_cache_by_pattern
+        
         await redis_service.delete("academic_years:all")
         await redis_service.delete("academic_year:current")
         # Clear school-specific cache if school_id is provided
@@ -305,3 +307,6 @@ class AcademicYearService:
             await redis_service.delete(f"academic_years:school:{school_id}")
             await redis_service.delete(f"academic_years:school:{school_id}:all")
             await redis_service.delete(f"academic_year:current:school:{school_id}")
+            # Clear all paginated cache entries for this school
+            pattern = f"academic_years:school:{school_id}*"
+            await clear_cache_by_pattern(pattern)

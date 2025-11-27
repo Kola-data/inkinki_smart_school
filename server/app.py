@@ -34,11 +34,18 @@ from routers.parent_router import router as parent_router
 from routers.student_router import router as student_router
 from routers.fee_type_router import router as fee_type_router
 from routers.fee_management_router import router as fee_management_router
-from routers.fee_detail_router import router as fee_detail_router
-from routers.inventory_router import router as inventory_router
+from routers.fee_invoice_router import router as fee_invoice_router
+from routers.expense_router import router as expense_router
 from routers.attendance_router import router as attendance_router
-from routers.assessment_router import router as assessment_router
+from routers.test_mark_router import router as test_mark_router
 from routers.exam_router import router as exam_router
+from routers.cache_router import router as cache_router
+from routers.system_user_router import router as system_user_router
+from routers.system_auth_router import router as system_auth_router
+from routers.system_analytics_router import router as system_analytics_router
+from routers.payment_season_router import router as payment_season_router
+from routers.school_payment_record_router import router as school_payment_record_router
+from routers.student_reports_router import router as student_reports_router
 
 # Import logging services
 from services.logging_service import logging_service, LogLevel, ActionType
@@ -57,6 +64,40 @@ app = FastAPI(
     version=settings.VERSION,
     debug=settings.DEBUG
 )
+
+# Configure Swagger/OpenAPI security schemes
+from fastapi.openapi.utils import get_openapi
+from utils.auth_dependencies import security
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = get_openapi(
+        title=settings.PROJECT_NAME,
+        version=settings.VERSION,
+        description=settings.DESCRIPTION,
+        routes=app.routes,
+    )
+    
+    # Ensure components exist
+    if "components" not in openapi_schema:
+        openapi_schema["components"] = {}
+    
+    # Add security scheme - FastAPI should auto-detect, but we ensure it's there
+    if "securitySchemes" not in openapi_schema["components"]:
+        openapi_schema["components"]["securitySchemes"] = {}
+    
+    openapi_schema["components"]["securitySchemes"]["Bearer"] = {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Enter your JWT token. Just paste the token value (Swagger will add 'Bearer' automatically)."
+    }
+    
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
 
 # Configure rate limiting - DISABLED FOR TESTING
 # limiter = Limiter(
@@ -101,11 +142,18 @@ app.include_router(parent_router, prefix="/api/v1")
 app.include_router(student_router, prefix="/api/v1")
 app.include_router(fee_type_router, prefix="/api/v1")
 app.include_router(fee_management_router, prefix="/api/v1")
-app.include_router(fee_detail_router, prefix="/api/v1")
-app.include_router(inventory_router, prefix="/api/v1")
+app.include_router(fee_invoice_router, prefix="/api/v1")
+app.include_router(expense_router, prefix="/api/v1")
 app.include_router(attendance_router, prefix="/api/v1")
-app.include_router(assessment_router, prefix="/api/v1")
+app.include_router(test_mark_router, prefix="/api/v1")
 app.include_router(exam_router, prefix="/api/v1")
+app.include_router(cache_router, prefix="/api/v1")
+app.include_router(system_user_router, prefix="/api/v1")
+app.include_router(system_auth_router, prefix="/api/v1")
+app.include_router(system_analytics_router, prefix="/api/v1")
+app.include_router(payment_season_router, prefix="/api/v1")
+app.include_router(school_payment_record_router, prefix="/api/v1")
+app.include_router(student_reports_router, prefix="/api/v1")
 app.include_router(auth_router)
 
 # School endpoints will be added below
@@ -205,7 +253,7 @@ class TestRecordResponse(BaseModel):
 async def root():
     """Root endpoint with basic information"""
     return {
-        "message": "Welcome to Inkinki Smart School API",
+        "message": "Welcome to Inkingi Smart School API",
         "version": "1.0.0",
         "endpoints": {
             "health": "/health",

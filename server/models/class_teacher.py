@@ -9,9 +9,9 @@ class ClassTeacher(Base):
     __tablename__ = "class_teachers"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    teacher_id = Column(UUID(as_uuid=True), ForeignKey("teachers.teacher_id"), nullable=False)
-    subj_id = Column(UUID(as_uuid=True), ForeignKey("subjects.subj_id"), nullable=False)
-    cls_id = Column(UUID(as_uuid=True), ForeignKey("classes.cls_id"), nullable=False)
+    teacher_id = Column(UUID(as_uuid=True), ForeignKey("teachers.teacher_id"), nullable=False, index=True)
+    subj_id = Column(UUID(as_uuid=True), ForeignKey("subjects.subj_id"), nullable=False, index=True)
+    cls_id = Column(UUID(as_uuid=True), ForeignKey("classes.cls_id"), nullable=False, index=True)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
     is_deleted = Column(Boolean, default=False)

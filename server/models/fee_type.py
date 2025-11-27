@@ -9,7 +9,7 @@ class FeeType(Base):
     __tablename__ = "fee_types"
     
     fee_type_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.school_id"), nullable=False)
+    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.school_id"), nullable=False, index=True)
     fee_type_name = Column(String(255), nullable=False)
     description = Column(Text)
     amount_to_pay = Column(Float, nullable=False, default=0.0)

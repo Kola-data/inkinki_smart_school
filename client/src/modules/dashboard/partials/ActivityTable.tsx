@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../../services/api';
 import { Link } from 'react-router-dom';
+import { getArrayFromResponse } from '../../../utils/apiHelpers';
 
 interface RecentActivity {
 	id: string;
@@ -31,9 +32,9 @@ export default function ActivityTable() {
 					api.get(`/fee-management`, { params: { school_id: schoolId } }).catch(() => ({ data: [] })),
 				]);
 
-				const students = (studentsRes.data || []).slice(0, 3);
-				const staffList = (staffRes.data || []).slice(0, 2);
-				const fees = (feesRes.data || []).slice(0, 3);
+				const students = getArrayFromResponse(studentsRes.data).slice(0, 3);
+				const staffList = getArrayFromResponse(staffRes.data).slice(0, 2);
+				const fees = getArrayFromResponse(feesRes.data).slice(0, 3);
 
 				const activityList: RecentActivity[] = [
 					...students.map((s: any) => ({
@@ -63,9 +64,7 @@ export default function ActivityTable() {
 				];
 
 				setActivities(activityList.slice(0, 8));
-			} catch (error) {
-				console.error('Error fetching activity:', error);
-			} finally {
+			} catch (error) {} finally {
 				setLoading(false);
 			}
 		}

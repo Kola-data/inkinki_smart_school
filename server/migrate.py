@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Database migration script for Inkinki Smart School API
+Database migration script for Inkingi Smart School API
 """
 import asyncio
 import subprocess
@@ -68,7 +68,7 @@ async def check_migration_status():
 
 async def main():
     """Main migration function"""
-    print("🗄️  Inkinki Smart School Database Migration Tool")
+    print("🗄️  Inkingi Smart School Database Migration Tool")
     print("=" * 50)
     print(f"Database: {settings.DATABASE_URL}")
     print("=" * 50)

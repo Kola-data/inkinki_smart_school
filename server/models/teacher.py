@@ -9,7 +9,7 @@ class Teacher(Base):
     __tablename__ = "teachers"
     
     teacher_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    staff_id = Column(UUID(as_uuid=True), ForeignKey("staff.staff_id"), nullable=False, unique=True)
+    staff_id = Column(UUID(as_uuid=True), ForeignKey("staff.staff_id"), nullable=False, unique=True, index=True)
     specialized = Column(String(255))
     is_active = Column(Boolean, default=True)
     is_deleted = Column(Boolean, default=False)

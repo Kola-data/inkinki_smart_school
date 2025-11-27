@@ -9,8 +9,8 @@ class FeeDetail(Base):
     __tablename__ = "fee_management_details"
     
     fee_detail_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.school_id"), nullable=False)
-    fee_id = Column(UUID(as_uuid=True), ForeignKey("fee_management.fee_id"), nullable=False)
+    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.school_id"), nullable=False, index=True)
+    fee_id = Column(UUID(as_uuid=True), ForeignKey("fee_management.fee_id"), nullable=False, index=True)
     amount = Column(Float, nullable=False, default=0.0)
     invoice_img = Column(String(500))  # URL or path to invoice image
     status = Column(String(50), nullable=False, default="pending")

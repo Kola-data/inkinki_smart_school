@@ -12,11 +12,14 @@ from schemas.class_schemas import (
     ClassSoftDelete
 )
 from utils.school_utils import verify_school_active
+from utils.auth_dependencies import get_current_staff
+from models.staff import Staff
 
 router = APIRouter(prefix="/classes", tags=["Classes"])
 
 @router.get("/", response_model=List[ClassWithManagerResponse])
-async def get_all_classes_with_manager_info(school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_all_classes_with_manager_info(school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Get all classes with manager information for a specific school"""
     try:
         await verify_school_active(school_id, db)
@@ -30,7 +33,8 @@ async def get_all_classes_with_manager_info(school_id: UUID, db: AsyncSession = 
         )
 
 @router.get("/{cls_id}", response_model=ClassWithManagerResponse)
-async def get_class_by_id(cls_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_class_by_id(cls_id: UUID, school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Get a class by ID with manager information for a specific school"""
     try:
         await verify_school_active(school_id, db)
@@ -51,7 +55,8 @@ async def get_class_by_id(cls_id: UUID, school_id: UUID, db: AsyncSession = Depe
         )
 
 @router.post("/", response_model=ClassResponse, status_code=status.HTTP_201_CREATED)
-async def create_class(class_data: ClassCreate, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def create_class(class_data: ClassCreate, school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Create a new class for a specific school"""
     try:
         await verify_school_active(school_id, db)
@@ -70,7 +75,8 @@ async def create_class(class_data: ClassCreate, school_id: UUID, db: AsyncSessio
         )
 
 @router.put("/{cls_id}", response_model=ClassResponse)
-async def update_class(cls_id: UUID, class_data: ClassUpdate, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def update_class(cls_id: UUID, class_data: ClassUpdate, school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Update a class for a specific school"""
     try:
         await verify_school_active(school_id, db)
@@ -96,7 +102,8 @@ async def update_class(cls_id: UUID, class_data: ClassUpdate, school_id: UUID, d
         )
 
 @router.delete("/{cls_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def soft_delete_class(cls_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def soft_delete_class(cls_id: UUID, school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Soft delete a class for a specific school"""
     try:
         await verify_school_active(school_id, db)

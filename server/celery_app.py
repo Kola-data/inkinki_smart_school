@@ -4,7 +4,7 @@ from services.logging_service import logging_service, LogLevel, ActionType
 
 # Create Celery app
 celery_app = Celery(
-    "inkinki_smart_school",
+    "inkingi_smart_school",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
     include=['tasks.background_tasks']

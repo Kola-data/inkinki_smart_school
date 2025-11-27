@@ -340,9 +340,14 @@ class ClassService:
         return False
 
     async def _clear_class_cache(self, school_id: UUID = None):
-        """Clear class-related cache"""
+        """Clear class-related cache including paginated entries"""
+        from utils.clear_cache import clear_cache_by_pattern
+        
         await redis_service.delete("classes:all")
         # Clear school-specific cache if school_id is provided
         if school_id:
             await redis_service.delete(f"classes:school:{school_id}")
             await redis_service.delete(f"classes:school:{school_id}:with_manager")
+            # Clear all paginated cache entries for this school
+            pattern = f"classes:school:{school_id}*"
+            await clear_cache_by_pattern(pattern)

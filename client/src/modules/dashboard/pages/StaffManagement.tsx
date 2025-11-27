@@ -19,6 +19,7 @@ import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import StaffForm from '../components/StaffForm';
 import StaffViewModal from '../components/StaffViewModal';
+import { getArrayFromResponse } from '../../../utils/apiHelpers';
 
 interface StaffMember {
 	staff_id: string;
@@ -205,10 +206,21 @@ export default function StaffManagement() {
 
 			try {
 				setLoading(true);
-				const { data } = await api.get(`/staff/?school_id=${schoolId}`);
-				setStaff(data || []);
+				// Request with pagination to get all staff (page_size=100 should be enough)
+				const { data } = await api.get(`/staff/?school_id=${schoolId}&page=1&page_size=100`);
+				// Handle paginated response - data.items contains the array
+				if (data && Array.isArray(data.items)) {
+					setStaff(data.items);
+				} else if (Array.isArray(data)) {
+					// Fallback for non-paginated response
+					setStaff(data);
+				} else {
+					// Use helper function as fallback
+					setStaff(getArrayFromResponse(data));
+				}
 			} catch (error: any) {
-				const errorMessage = error.response?.data?.detail || 'Failed to load staff';
+				console.error('Fetch staff error:', error);
+				const errorMessage = error.response?.data?.detail || error.message || 'Failed to load staff';
 				toast.error(errorMessage);
 				setStaff([]);
 			} finally {
@@ -484,20 +496,45 @@ export default function StaffManagement() {
 
 	// Refresh staff data with cache busting
 	const refreshStaff = async () => {
-		if (!schoolId) return;
+		if (!schoolId) {
+			console.warn('Cannot refresh staff: schoolId is missing');
+			return;
+		}
 
 		try {
 			// Add timestamp to bust cache and ensure fresh data
 			const timestamp = new Date().getTime();
-			const { data } = await api.get(`/staff/?school_id=${schoolId}&_t=${timestamp}`);
-			// Update state with fresh data
-			setStaff(data || []);
+			const { data } = await api.get(`/staff/?school_id=${schoolId}&page=1&page_size=100&_t=${timestamp}`);
+			
+			console.log('Refresh staff response:', { 
+				hasData: !!data, 
+				hasItems: !!(data?.items), 
+				itemsCount: data?.items?.length || 0,
+				isArray: Array.isArray(data)
+			});
+			
+			// Handle paginated response - same logic as fetchStaff
+			let newStaffData: StaffMember[] = [];
+			if (data && Array.isArray(data.items)) {
+				newStaffData = data.items;
+			} else if (Array.isArray(data)) {
+				// Fallback for non-paginated response
+				newStaffData = data;
+			} else {
+				// Use helper function as fallback
+				newStaffData = getArrayFromResponse(data);
+			}
+			
+			console.log('Setting staff data:', { count: newStaffData.length });
+			// Force state update by creating a new array reference
+			setStaff([...newStaffData]);
+			
 			// Reset to first page after refresh to show new items
 			setCurrentPage(1);
 		} catch (error: any) {
-			const errorMessage = error.response?.data?.detail || 'Failed to refresh staff data';
+			console.error('Refresh staff error:', error);
+			const errorMessage = error.response?.data?.detail || error.message || 'Failed to refresh staff data';
 			toast.error(errorMessage);
-			console.error('Error refreshing staff:', error);
 		}
 	};
 
@@ -517,17 +554,25 @@ export default function StaffManagement() {
 
 		setFormLoading(true);
 		try {
-			await api.post('/staff/', {
+			const response = await api.post('/staff/', {
 				...formDataToSubmit,
 				school_id: schoolId,
 			});
 			toast.success('Staff member created successfully!');
 			setCreateConfirmOpen(false);
 			setFormDataToSubmit(null);
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			// Refresh data immediately after successful creation
 			await refreshStaff();
 		} catch (error: any) {
-			toast.error(error.response?.data?.detail || 'Failed to create staff member');
+			const errorMessage = error.response?.data?.detail;
+			if (Array.isArray(errorMessage)) {
+				const errorMessages = errorMessage.map((err: any) => `${err.loc?.join('.')}: ${err.msg}`).join(', ');
+				toast.error(errorMessages || 'Validation error');
+			} else {
+				toast.error(errorMessage || error.message || 'Failed to create staff member');
+			}
 		} finally {
 			setFormLoading(false);
 		}
@@ -551,10 +596,18 @@ export default function StaffManagement() {
 			setUpdateConfirmOpen(false);
 			setSelectedStaff(null);
 			setFormDataToSubmit(null);
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			// Refresh data immediately after successful update
 			await refreshStaff();
 		} catch (error: any) {
-			toast.error(error.response?.data?.detail || 'Failed to update staff member');
+			const errorMessage = error.response?.data?.detail;
+			if (Array.isArray(errorMessage)) {
+				const errorMessages = errorMessage.map((err: any) => `${err.loc?.join('.')}: ${err.msg}`).join(', ');
+				toast.error(errorMessages || 'Validation error');
+			} else {
+				toast.error(errorMessage || error.message || 'Failed to update staff member');
+			}
 		} finally {
 			setFormLoading(false);
 		}
@@ -570,10 +623,18 @@ export default function StaffManagement() {
 			toast.success('Staff member deleted successfully!');
 			setDeleteConfirmOpen(false);
 			setSelectedStaff(null);
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			// Refresh data immediately after successful deletion
 			await refreshStaff();
 		} catch (error: any) {
-			toast.error(error.response?.data?.detail || 'Failed to delete staff member');
+			const errorMessage = error.response?.data?.detail;
+			if (Array.isArray(errorMessage)) {
+				const errorMessages = errorMessage.map((err: any) => `${err.loc?.join('.')}: ${err.msg}`).join(', ');
+				toast.error(errorMessages || 'Validation error');
+			} else {
+				toast.error(errorMessage || error.message || 'Failed to delete staff member');
+			}
 		} finally {
 			setDeleteLoading(false);
 		}
@@ -586,17 +647,22 @@ export default function StaffManagement() {
 		setStatusUpdateLoading(staffId);
 		setStatusDropdownOpen(null);
 		try {
-			console.log('Updating staff status:', { staffId, newStatus, schoolId });
-			const response = await api.put(`/staff/${staffId}?school_id=${schoolId}`, {
+			await api.put(`/staff/${staffId}?school_id=${schoolId}`, {
 				is_active: newStatus,
 			});
-			console.log('Status update response:', response.data);
 			toast.success(`Staff member ${newStatus ? 'activated' : 'deactivated'} successfully!`);
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			// Refresh data immediately after successful update
 			await refreshStaff();
 		} catch (error: any) {
-			console.error('Status update error:', error.response?.data || error.message);
-			toast.error(error.response?.data?.detail || 'Failed to update staff status');
+			const errorMessage = error.response?.data?.detail;
+			if (Array.isArray(errorMessage)) {
+				const errorMessages = errorMessage.map((err: any) => `${err.loc?.join('.')}: ${err.msg}`).join(', ');
+				toast.error(errorMessages || 'Validation error');
+			} else {
+				toast.error(errorMessage || error.message || 'Failed to update staff status');
+			}
 		} finally {
 			setStatusUpdateLoading(null);
 		}
@@ -646,9 +712,9 @@ export default function StaffManagement() {
 
 	if (loading) {
 		return (
-			<div className="flex bg-gray-50 min-h-screen">
+			<div className="flex bg-gray-50 min-h-screen h-screen overflow-hidden">
 				<Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-				<div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+				<div className="flex-1 flex flex-col h-screen overflow-hidden">
 					<Topbar onMenuClick={toggleSidebar} sidebarOpen={sidebarOpen} />
 					<main className="flex-1 overflow-y-auto p-8">
 						<div className="flex items-center justify-center h-64">
@@ -661,9 +727,9 @@ export default function StaffManagement() {
 	}
 
 	return (
-		<div className="flex bg-gray-50 min-h-screen">
+		<div className="flex bg-gray-50 min-h-screen h-screen overflow-hidden">
 			<Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-			<div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+			<div className="flex-1 flex flex-col h-screen overflow-hidden">
 				<Topbar onMenuClick={toggleSidebar} sidebarOpen={sidebarOpen} />
 				<main className="flex-1 overflow-y-auto p-6 space-y-6">
 					{/* Header */}
@@ -683,7 +749,8 @@ export default function StaffManagement() {
 
 					{/* Analytics Cards */}
 					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-						<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6">
+						<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6 relative overflow-hidden">
+							<div className="absolute top-0 left-0 right-0 h-1 bg-blue-600"></div>
 							<div className="flex items-center justify-between">
 								<div>
 									<p className="text-sm font-medium text-gray-600">Total Staff</p>
@@ -695,7 +762,8 @@ export default function StaffManagement() {
 							</div>
 						</div>
 
-						<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6">
+						<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6 relative overflow-hidden">
+							<div className="absolute top-0 left-0 right-0 h-1 bg-green-600"></div>
 							<div className="flex items-center justify-between">
 								<div>
 									<p className="text-sm font-medium text-gray-600">Active</p>
@@ -707,7 +775,8 @@ export default function StaffManagement() {
 							</div>
 						</div>
 
-						<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6">
+						<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6 relative overflow-hidden">
+							<div className="absolute top-0 left-0 right-0 h-1 bg-red-600"></div>
 							<div className="flex items-center justify-between">
 								<div>
 									<p className="text-sm font-medium text-gray-600">Inactive</p>
@@ -719,7 +788,8 @@ export default function StaffManagement() {
 							</div>
 						</div>
 
-						<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6">
+						<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6 relative overflow-hidden">
+							<div className="absolute top-0 left-0 right-0 h-1 bg-purple-600"></div>
 							<div className="flex items-center justify-between">
 								<div>
 									<p className="text-sm font-medium text-gray-600">Unique Roles</p>
@@ -1313,7 +1383,7 @@ export default function StaffManagement() {
 						isOpen={createModalOpen}
 						onClose={() => setCreateModalOpen(false)}
 						title="Create New Staff Member"
-						size="lg"
+						size="xl"
 					>
 						<StaffForm
 							mode="create"
@@ -1331,7 +1401,7 @@ export default function StaffManagement() {
 							setSelectedStaff(null);
 						}}
 						title="Edit Staff Member"
-						size="lg"
+						size="xl"
 					>
 						<StaffForm
 							mode="edit"

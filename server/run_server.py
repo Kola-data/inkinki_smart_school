@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Production-ready startup script for the Inkinki Smart School API
+Production-ready startup script for the Inkingi Smart School API
 """
 import asyncio
 import uvicorn
@@ -41,7 +41,7 @@ async def run_migrations():
 
 async def main():
     """Main startup function"""
-    print("🚀 Starting Inkinki Smart School API (Production Mode)")
+    print("🚀 Starting Inkingi Smart School API (Production Mode)")
     print("=" * 60)
     print(f"Environment: {settings.ENVIRONMENT}")
     print(f"Debug Mode: {settings.DEBUG}")

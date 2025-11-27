@@ -24,8 +24,9 @@ class ResetPasswordRequest(BaseModel):
     email: EmailStr
 
 class ResetPasswordConfirm(BaseModel):
-    """Schema for password reset confirmation"""
-    token: str
+    """Schema for password reset confirmation with verification code"""
+    email: EmailStr
+    verification_code: str  # 6-digit code
     new_password: str
 
 class ChangePasswordRequest(BaseModel):

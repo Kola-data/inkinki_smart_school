@@ -4,6 +4,7 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from services.logging_service import logging_service, LogLevel, ActionType
 from tasks.background_tasks import process_api_logs
+from utils.celery_utils import safe_celery_call
 import asyncio
 
 class LoggingMiddleware(BaseHTTPMiddleware):
@@ -70,18 +71,21 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 }
             )
             
-            # Add background task for detailed logging
-            process_api_logs.delay({
-                "method": method,
-                "endpoint": path,
-                "status_code": status_code,
-                "user_id": user_id,
-                "request_data": request_data,
-                "response_data": {
-                    "process_time": process_time,
-                    "client_ip": client_ip
+            # Add background task for detailed logging (only if Celery/Redis is available)
+            safe_celery_call(
+                process_api_logs,
+                {
+                    "method": method,
+                    "endpoint": path,
+                    "status_code": status_code,
+                    "user_id": user_id,
+                    "request_data": request_data,
+                    "response_data": {
+                        "process_time": process_time,
+                        "client_ip": client_ip
+                    }
                 }
-            })
+            )
             
             return response
             

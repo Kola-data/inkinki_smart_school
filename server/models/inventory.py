@@ -8,7 +8,7 @@ class Inventory(Base):
     __tablename__ = "inventory_management"
     
     inv_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.school_id"), nullable=False)
+    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.school_id"), nullable=False, index=True)
     inv_name = Column(String(255), nullable=False)
     inv_service = Column(String(255))
     inv_desc = Column(Text)

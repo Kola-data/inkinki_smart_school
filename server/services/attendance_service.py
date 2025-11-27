@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, and_, or_
+from sqlalchemy import select, update, and_, or_, func as sql_func
 from sqlalchemy.orm import selectinload
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from uuid import UUID
 from datetime import datetime, date
 from models.attendance import Attendance
@@ -10,11 +10,13 @@ from models.teacher import Teacher
 from models.subject import Subject
 from models.class_model import Class
 from models.school import School
+from models.staff import Staff
 from schemas.attendance_schemas import AttendanceCreate, AttendanceUpdate, AttendanceBulkCreate, AttendanceFilter
 from redis_client import redis_service
 from config import settings
 from services.logging_service import logging_service, LogLevel, ActionType
 from tasks.background_tasks import process_database_logs, process_cache_logs
+from utils.cache_utils import get_paginated_cache, set_paginated_cache
 
 class AttendanceService:
     """Service class for Attendance CRUD operations"""
@@ -29,16 +31,26 @@ class AttendanceService:
         await redis_service.delete(f"attendance:teacher:*")
         await redis_service.delete(f"attendance:subject:*")
     
-    async def get_all_attendance(self, school_id: UUID, filters: Optional[AttendanceFilter] = None):
-        """Get all attendance records for a specific school with related entity details"""
-        cache_key = f"attendance:school:{school_id}"
+    async def get_all_attendance(
+        self, 
+        school_id: UUID, 
+        filters: Optional[AttendanceFilter] = None, 
+        academic_id: Optional[UUID] = None,
+        page: int = 1,
+        page_size: int = 50
+    ) -> Tuple[List[dict], int]:
+        """Get paginated attendance records for a specific school with related entity details"""
+        base_cache_key = f"attendance:school:{school_id}"
+        cache_filters = {}
         if filters:
-            cache_key += f":filtered:{hash(str(filters.dict()))}"
+            cache_filters['filters'] = str(hash(str(filters.dict())))
+        if academic_id:
+            cache_filters['academic_id'] = str(academic_id)
         
-        cached_attendance = await redis_service.get(cache_key)
-        
-        if cached_attendance:
-            return cached_attendance
+        # Try to get from paginated cache
+        cached_result = await get_paginated_cache(base_cache_key, page, page_size, cache_filters)
+        if cached_result:
+            return cached_result
         
         query = select(Attendance).filter(
             Attendance.school_id == school_id,
@@ -50,6 +62,10 @@ class AttendanceService:
             selectinload(Attendance.subject),
             selectinload(Attendance.class_obj)
         )
+        
+        # Note: Attendance doesn't have academic_id field, so we can't filter by it directly
+        # If academic_id is provided, we would need to filter by date range based on academic year dates
+        # For now, we'll ignore it since attendance doesn't have this field
         
         # Apply filters if provided
         if filters:
@@ -66,7 +82,18 @@ class AttendanceService:
             if filters.status:
                 query = query.filter(Attendance.status == filters.status)
         
-        result = await self.db.execute(query)
+        # Get total count
+        count_query = select(sql_func.count(Attendance.att_id)).select_from(
+            query.subquery()
+        )
+        count_result = await self.db.execute(count_query)
+        total = count_result.scalar() or 0
+        
+        # Apply pagination
+        offset = (page - 1) * page_size
+        paginated_query = query.order_by(Attendance.date.desc()).offset(offset).limit(page_size)
+        
+        result = await self.db.execute(paginated_query)
         attendance_records = result.scalars().all()
         
         # Convert to dict format with related entity details
@@ -82,9 +109,10 @@ class AttendanceService:
             })
             attendance_data.append(data)
         
-        await redis_service.set(cache_key, attendance_data, expire=settings.REDIS_CACHE_TTL)
+        # Cache the result
+        await set_paginated_cache(base_cache_key, page, page_size, attendance_data, total, cache_filters)
         
-        return attendance_data
+        return attendance_data, total
     
     async def get_attendance_by_id(self, attendance_id: UUID, school_id: UUID, as_dict: bool = False):
         """Get an attendance record by ID with related entity details"""
@@ -203,12 +231,18 @@ class AttendanceService:
             raise ValueError(f"Subject not found in school with ID {attendance_data.school_id}")
 
         # If class provided, validate class belongs to school
+        # Class doesn't have school_id directly, so we validate through Teacher -> Staff -> School
         if attendance_data.cls_id is not None:
             class_result = await self.db.execute(
-                select(Class).filter(
+                select(Class)
+                .join(Teacher, Class.cls_manager == Teacher.teacher_id)
+                .join(Staff, Teacher.staff_id == Staff.staff_id)
+                .filter(
                     Class.cls_id == attendance_data.cls_id,
-                    Class.school_id == attendance_data.school_id,
-                    Class.is_deleted == False
+                    Staff.school_id == attendance_data.school_id,
+                    Class.is_deleted == False,
+                    Teacher.is_deleted == False,
+                    Staff.is_deleted == False
                 )
             )
             if not class_result.scalar_one_or_none():
@@ -357,11 +391,17 @@ class AttendanceService:
                 raise ValueError(f"Subject not found in school")
 
         if 'cls_id' in update_data and update_data['cls_id'] is not None:
+            # Class doesn't have school_id directly, so we validate through Teacher -> Staff -> School
             class_result = await self.db.execute(
-                select(Class).filter(
+                select(Class)
+                .join(Teacher, Class.cls_manager == Teacher.teacher_id)
+                .join(Staff, Teacher.staff_id == Staff.staff_id)
+                .filter(
                     Class.cls_id == update_data['cls_id'],
-                    Class.school_id == update_data.get('school_id', school_id),
-                    Class.is_deleted == False
+                    Staff.school_id == update_data.get('school_id', school_id),
+                    Class.is_deleted == False,
+                    Teacher.is_deleted == False,
+                    Staff.is_deleted == False
                 )
             )
             if not class_result.scalar_one_or_none():

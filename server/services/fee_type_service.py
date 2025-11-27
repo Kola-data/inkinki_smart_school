@@ -16,8 +16,15 @@ class FeeTypeService:
         self.db = db
     
     async def _clear_fee_type_cache(self, school_id: UUID):
-        """Clear cache for fee type operations"""
+        """Clear cache for fee type operations including paginated entries"""
+        from utils.clear_cache import clear_cache_by_pattern
+        
+        # Clear the base cache key
         await redis_service.delete(f"fee_types:school:{school_id}")
+        
+        # Clear all paginated cache entries for this school
+        pattern = f"fee_types:school:{school_id}*"
+        await clear_cache_by_pattern(pattern)
     
     async def get_all_fee_types(self, school_id: UUID) -> List[FeeType]:
         """Get all fee types for a specific school"""

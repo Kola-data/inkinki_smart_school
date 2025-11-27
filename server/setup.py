@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Setup script for Inkinki Smart School API
+Setup script for Inkingi Smart School API
 This script helps set up the environment and run the application
 """
 
@@ -21,7 +21,7 @@ def run_command(command, description):
         return False
 
 def main():
-    print("🚀 Setting up Inkinki Smart School API...")
+    print("🚀 Setting up Inkingi Smart School API...")
     
     # Check if Python is available
     if not run_command("python3 --version", "Checking Python version"):

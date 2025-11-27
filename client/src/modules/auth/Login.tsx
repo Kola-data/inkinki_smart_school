@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
@@ -11,6 +11,14 @@ export default function Login() {
 	const [touched, setTouched] = useState<{ email?: boolean; password?: boolean }>({});
 	const [loading, setLoading] = useState(false);
 	const navigate = useNavigate();
+
+	// Redirect to dashboard if user already has a token
+	useEffect(() => {
+		const token = localStorage.getItem('token');
+		if (token) {
+			navigate('/dashboard', { replace: true });
+		}
+	}, [navigate]);
 
 	const validateField = (field: 'email' | 'password', value: string) => {
 		let error: string | null = null;
@@ -73,6 +81,8 @@ export default function Login() {
 			const { data } = await api.post('/auth/login', { email, password });
 			
 			// Store authentication data
+			// Normalize role to lowercase to match StaffForm values: 'admin', 'teacher', 'accountant'
+			const normalizedRole = data.staff_role?.toLowerCase().trim() || null;
 			localStorage.setItem('token', data.access_token);
 			localStorage.setItem('staff', JSON.stringify({
 				staff_id: data.staff_id,
@@ -80,7 +90,11 @@ export default function Login() {
 				email: data.email,
 				school_id: data.school_id,
 				staff_profile: data.staff_profile || null,
+				staff_role: normalizedRole, // Store normalized role for RBAC
 			}));
+			
+			// Trigger event to update navigation
+			window.dispatchEvent(new Event('staffUpdated'));
 			
 			// Show success message
 			toast.success(`Welcome back, ${data.staff_name}!`, {
@@ -98,11 +112,7 @@ export default function Login() {
 			setTimeout(() => {
 				navigate('/dashboard');
 			}, 1000);
-		} catch (err: any) {
-			console.error('Login error:', err);
-			console.error('Error response:', err.response);
-			
-			// Determine error message with more detailed handling
+		} catch (err: any) {// Determine error message with more detailed handling
 			let errorMessage = 'Login failed. Please try again.';
 			
 			if (err.response) {
@@ -267,13 +277,20 @@ export default function Login() {
 						</button>
 					</form>
 
-					<div className="mt-6 text-center">
-						<p className="text-gray-600">
-							Don't have an account?{' '}
-							<Link to="/register" className="text-purple-600 hover:text-purple-700 font-semibold">
-								Sign Up
+					<div className="mt-6 space-y-4">
+						<div className="text-center">
+							<Link to="/reset-password" className="text-purple-600 hover:text-purple-700 font-semibold text-sm">
+								Forgot Password?
 							</Link>
-						</p>
+						</div>
+						<div className="text-center">
+							<p className="text-gray-600">
+								Don't have an account?{' '}
+								<Link to="/register" className="text-purple-600 hover:text-purple-700 font-semibold">
+									Sign Up
+								</Link>
+							</p>
+						</div>
 					</div>
 				</div>
 			</div>

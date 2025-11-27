@@ -1,19 +1,31 @@
 # Copy this file to .env and modify the values as needed
 
 # Database Configuration
-DATABASE_URL=postgresql://postgres:password123@localhost:5432/inkinki_school
+DATABASE_URL=postgresql://kwola:asdf0780@localhost:5440/inkingi_school
 DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=inkinki_school
-DB_USER=postgres
-DB_PASSWORD=password123
+DB_PORT=5440
+DB_NAME=inkingi_school
+DB_USER=kwola
+DB_PASSWORD=asdf0780
 
-# Redis Configuration
+# Redis Configuration (Local Redis Server)
+# Connection URL - can be used instead of individual host/port settings
+REDIS_CONNECTION_URL=redis://localhost:6379
+# Individual connection settings (used if REDIS_CONNECTION_URL is not set)
+REDIS_SERVER_HOST=localhost
+REDIS_SERVER_PORT=6379
+REDIS_AUTH_PASSWORD=
+REDIS_DATABASE_NUMBER=0
+# Cache expiration settings (in seconds)
+REDIS_CACHE_EXPIRATION_SECONDS=3600
+
+# Legacy Redis settings (for backward compatibility - will be deprecated)
 REDIS_URL=redis://localhost:6379
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=
 REDIS_DB=0
+REDIS_CACHE_TTL=3600
 
 # Application Configuration
 DEBUG=True
@@ -27,28 +39,28 @@ PORT=8000
 RELOAD=True
 
 # CORS Configuration
-CORS_ORIGINS=http://localhost:3000,http://localhost:8080,http://127.0.0.1:3000
+CORS_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:8080,http://127.0.0.1:3000,http://127.0.0.1:5173
 
 # Logging Configuration
 LOG_LEVEL=info
 LOG_FORMAT=%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 # Cache Configuration
+CACHE_EXPIRATION_SECONDS=3600
 CACHE_TTL=3600
-REDIS_CACHE_TTL=3600
 
 # Security Configuration
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 ALGORITHM=HS256
 
-# Email Configuration (for future use)
+# Email Configuration (SMTP)
 SMTP_TLS=True
 SMTP_PORT=587
-SMTP_HOST=
-SMTP_USER=
-SMTP_PASSWORD=
-EMAILS_FROM_EMAIL=
-EMAILS_FROM_NAME=Inkinki Smart School
+SMTP_HOST=smtp.gmail.com
+SMTP_USER=dreamwave610@gmail.com
+SMTP_PASSWORD=your-app-password-here
+EMAILS_FROM_EMAIL=dreamwave610@gmail.com
+EMAILS_FROM_NAME=Inkingi Smart School
 
 # File Upload Configuration
 MAX_FILE_SIZE=10485760

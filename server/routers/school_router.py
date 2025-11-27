@@ -2,10 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from uuid import UUID
+from datetime import datetime
 from database import get_db
 from services.school_service import SchoolService
+from services.school_error_logging_service import school_error_logging_service
 from schemas.school_schemas import SchoolCreate, SchoolUpdate, SchoolResponse
 from utils.file_utils import save_base64_file
+from utils.auth_dependencies import get_current_system_user
+from models.system_user import SystemUser
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -20,20 +24,42 @@ router = APIRouter(prefix="/school", tags=["School"])
 # )
 
 @router.get("/", response_model=List[SchoolResponse])
-async def get_all_schools(request: Request, db: AsyncSession = Depends(get_db)):
+async def get_all_schools(
+    request: Request,
+    current_system_user: SystemUser = Depends(get_current_system_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Get all schools"""
     try:
         service = SchoolService(db)
         schools = await service.get_all_schools()
         return schools
+    except HTTPException:
+        raise
     except Exception as e:
+        # Log error automatically - capture time when error occurs
+        error_time = datetime.now()
+        await school_error_logging_service.log_school_endpoint_error(
+            error=e,
+            endpoint=str(request.url.path),
+            method=request.method,
+            error_time=error_time,
+            client_ip=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            db=db
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Error retrieving schools: {str(e)}"
         )
 
 @router.get("/{school_id}", response_model=SchoolResponse)
-async def get_school_by_id(request: Request, school_id: str, db: AsyncSession = Depends(get_db)):
+async def get_school_by_id(
+    request: Request,
+    school_id: str,
+    current_system_user: SystemUser = Depends(get_current_system_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Get a school by ID"""
     try:
         school_uuid = UUID(school_id)
@@ -49,10 +75,27 @@ async def get_school_by_id(request: Request, school_id: str, db: AsyncSession = 
     except HTTPException:
         raise
     except Exception as e:
+        # Log error automatically - capture time when error occurs
+        error_time = datetime.now()
+        await school_error_logging_service.log_school_endpoint_error(
+            error=e,
+            endpoint=str(request.url.path),
+            method=request.method,
+            error_time=error_time,
+            school_id=school_id,
+            client_ip=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            db=db
+        )
         raise HTTPException(status_code=500, detail=f"Error retrieving school: {str(e)}")
 
 @router.post("/", response_model=SchoolResponse, status_code=201)
-async def create_school(request: Request, school_data: SchoolCreate, db: AsyncSession = Depends(get_db)):
+async def create_school(
+    request: Request,
+    school_data: SchoolCreate,
+    current_system_user: SystemUser = Depends(get_current_system_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Create a new school"""
     try:
         # Handle school_logo if it's a base64 string
@@ -82,10 +125,28 @@ async def create_school(request: Request, school_data: SchoolCreate, db: AsyncSe
     except HTTPException:
         raise
     except Exception as e:
+        # Log error automatically - capture time when error occurs
+        error_time = datetime.now()
+        await school_error_logging_service.log_school_endpoint_error(
+            error=e,
+            endpoint=str(request.url.path),
+            method=request.method,
+            error_time=error_time,
+            request_data=school_data.model_dump() if hasattr(school_data, 'model_dump') else None,
+            client_ip=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            db=db
+        )
         raise HTTPException(status_code=500, detail=f"Error creating school: {str(e)}")
 
 @router.put("/{school_id}", response_model=SchoolResponse)
-async def update_school(request: Request, school_id: str, school_data: SchoolUpdate, db: AsyncSession = Depends(get_db)):
+async def update_school(
+    request: Request,
+    school_id: str,
+    school_data: SchoolUpdate,
+    current_system_user: SystemUser = Depends(get_current_system_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Update a school"""
     try:
         school_uuid = UUID(school_id)
@@ -101,10 +162,28 @@ async def update_school(request: Request, school_id: str, school_data: SchoolUpd
     except HTTPException:
         raise
     except Exception as e:
+        # Log error automatically - capture time when error occurs
+        error_time = datetime.now()
+        await school_error_logging_service.log_school_endpoint_error(
+            error=e,
+            endpoint=str(request.url.path),
+            method=request.method,
+            error_time=error_time,
+            school_id=school_id,
+            request_data=school_data.model_dump() if hasattr(school_data, 'model_dump') else None,
+            client_ip=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            db=db
+        )
         raise HTTPException(status_code=500, detail=f"Error updating school: {str(e)}")
 
 @router.delete("/{school_id}", status_code=204)
-async def soft_delete_school(request: Request, school_id: str, db: AsyncSession = Depends(get_db)):
+async def soft_delete_school(
+    request: Request,
+    school_id: str,
+    current_system_user: SystemUser = Depends(get_current_system_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Soft delete a school"""
     try:
         school_uuid = UUID(school_id)
@@ -118,10 +197,27 @@ async def soft_delete_school(request: Request, school_id: str, db: AsyncSession 
     except HTTPException:
         raise
     except Exception as e:
+        # Log error automatically - capture time when error occurs
+        error_time = datetime.now()
+        await school_error_logging_service.log_school_endpoint_error(
+            error=e,
+            endpoint=str(request.url.path),
+            method=request.method,
+            error_time=error_time,
+            school_id=school_id,
+            client_ip=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            db=db
+        )
         raise HTTPException(status_code=500, detail=f"Error deleting school: {str(e)}")
 
 @router.patch("/{school_id}/activate", response_model=SchoolResponse)
-async def activate_school(request: Request, school_id: str, db: AsyncSession = Depends(get_db)):
+async def activate_school(
+    request: Request,
+    school_id: str,
+    current_system_user: SystemUser = Depends(get_current_system_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Activate a school"""
     try:
         school_uuid = UUID(school_id)
@@ -138,10 +234,27 @@ async def activate_school(request: Request, school_id: str, db: AsyncSession = D
     except HTTPException:
         raise
     except Exception as e:
+        # Log error automatically - capture time when error occurs
+        error_time = datetime.now()
+        await school_error_logging_service.log_school_endpoint_error(
+            error=e,
+            endpoint=str(request.url.path),
+            method=request.method,
+            error_time=error_time,
+            school_id=school_id,
+            client_ip=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            db=db
+        )
         raise HTTPException(status_code=500, detail=f"Error activating school: {str(e)}")
 
 @router.patch("/{school_id}/deactivate", response_model=SchoolResponse)
-async def deactivate_school(request: Request, school_id: str, db: AsyncSession = Depends(get_db)):
+async def deactivate_school(
+    request: Request,
+    school_id: str,
+    current_system_user: SystemUser = Depends(get_current_system_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Deactivate a school"""
     try:
         school_uuid = UUID(school_id)
@@ -158,4 +271,16 @@ async def deactivate_school(request: Request, school_id: str, db: AsyncSession =
     except HTTPException:
         raise
     except Exception as e:
+        # Log error automatically - capture time when error occurs
+        error_time = datetime.now()
+        await school_error_logging_service.log_school_endpoint_error(
+            error=e,
+            endpoint=str(request.url.path),
+            method=request.method,
+            error_time=error_time,
+            school_id=school_id,
+            client_ip=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            db=db
+        )
         raise HTTPException(status_code=500, detail=f"Error deactivating school: {str(e)}")

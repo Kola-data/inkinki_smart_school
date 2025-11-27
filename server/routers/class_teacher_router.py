@@ -12,11 +12,14 @@ from schemas.class_teacher_schemas import (
     ClassTeacherSoftDelete
 )
 from utils.school_utils import verify_school_active
+from utils.auth_dependencies import get_current_staff
+from models.staff import Staff
 
 router = APIRouter(prefix="/class-teachers", tags=["Class Teachers"])
 
 @router.get("/", response_model=List[ClassTeacherWithDetailsResponse])
-async def get_all_class_teachers_with_details(school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_all_class_teachers_with_details(school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Get all class teacher assignments with detailed information for a specific school"""
     try:
         await verify_school_active(school_id, db)
@@ -30,7 +33,8 @@ async def get_all_class_teachers_with_details(school_id: UUID, db: AsyncSession 
         )
 
 @router.get("/{assignment_id}", response_model=ClassTeacherWithDetailsResponse)
-async def get_class_teacher_by_id(assignment_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_class_teacher_by_id(assignment_id: UUID, school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Get a class teacher assignment by ID with detailed information for a specific school"""
     try:
         await verify_school_active(school_id, db)
@@ -51,7 +55,8 @@ async def get_class_teacher_by_id(assignment_id: UUID, school_id: UUID, db: Asyn
         )
 
 @router.post("/", response_model=ClassTeacherResponse, status_code=status.HTTP_201_CREATED)
-async def create_class_teacher(assignment_data: ClassTeacherCreate, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def create_class_teacher(assignment_data: ClassTeacherCreate, school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Create a new class teacher assignment for a specific school"""
     try:
         await verify_school_active(school_id, db)
@@ -70,7 +75,8 @@ async def create_class_teacher(assignment_data: ClassTeacherCreate, school_id: U
         )
 
 @router.put("/{assignment_id}", response_model=ClassTeacherResponse)
-async def update_class_teacher(assignment_id: UUID, assignment_data: ClassTeacherUpdate, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def update_class_teacher(assignment_id: UUID, assignment_data: ClassTeacherUpdate, school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Update a class teacher assignment for a specific school"""
     try:
         await verify_school_active(school_id, db)
@@ -96,7 +102,8 @@ async def update_class_teacher(assignment_id: UUID, assignment_data: ClassTeache
         )
 
 @router.delete("/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def soft_delete_class_teacher(assignment_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def soft_delete_class_teacher(assignment_id: UUID, school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Soft delete a class teacher assignment for a specific school"""
     try:
         await verify_school_active(school_id, db)

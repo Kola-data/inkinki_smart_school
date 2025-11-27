@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 from uuid import UUID
@@ -8,26 +7,9 @@ from database import get_db
 from services.auth_service import AuthService
 from schemas.auth_schemas import LoginRequest, LoginResponse, ResetPasswordRequest, ResetPasswordConfirm, ChangePasswordRequest
 from models.staff import Staff
+from utils.auth_dependencies import get_current_staff
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
-security = HTTPBearer()
-
-async def get_current_staff(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db)
-) -> Staff:
-    """Get current authenticated staff member"""
-    auth_service = AuthService(db)
-    staff = await auth_service.get_current_staff(credentials.credentials)
-    
-    if not staff:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    return staff
 
 @router.post("/login", response_model=LoginResponse)
 async def login(login_data: LoginRequest, db: AsyncSession = Depends(get_db)):
@@ -61,24 +43,23 @@ async def reset_password_request(reset_data: ResetPasswordRequest, db: AsyncSess
         success = await auth_service.reset_password_request(reset_data)
         
         if not success:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to process password reset request"
-            )
+            # For security, always return success message even if email fails
+            # This prevents email enumeration attacks
+            return {"message": "If an account exists with this email, password reset instructions have been sent."}
         
         return {"message": "Password reset instructions have been sent to your email"}
         
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Password reset error: {str(e)}"
-        )
+        # Log the error but return a generic message for security
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Password reset request error: {str(e)}")
+        # Still return success message to prevent email enumeration
+        return {"message": "If an account exists with this email, password reset instructions have been sent."}
 
 @router.post("/reset-password/confirm")
 async def reset_password_confirm(reset_data: ResetPasswordConfirm, db: AsyncSession = Depends(get_db)):
-    """Confirm password reset with token"""
+    """Confirm password reset with verification code"""
     try:
         auth_service = AuthService(db)
         success = await auth_service.reset_password_confirm(reset_data)
@@ -86,7 +67,7 @@ async def reset_password_confirm(reset_data: ResetPasswordConfirm, db: AsyncSess
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid or expired reset token"
+                detail="Invalid or expired verification code. Please check your email and try again."
             )
         
         return {"message": "Password has been reset successfully"}

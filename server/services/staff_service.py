@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update, delete, func as sql_func
 from sqlalchemy.orm import selectinload
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from uuid import UUID
 from models.staff import Staff
 from schemas.staff_schemas import StaffCreate, StaffUpdate, StaffStatusUpdate, StaffSoftDelete
@@ -10,6 +10,7 @@ from config import settings
 from services.logging_service import logging_service, LogLevel, ActionType
 from tasks.background_tasks import process_database_logs, process_cache_logs
 from utils.password_utils import hash_password
+from utils.cache_utils import get_paginated_cache, set_paginated_cache
 
 class StaffService:
     """Service class for Staff CRUD operations"""
@@ -268,28 +269,13 @@ class StaffService:
         return False
     
     async def get_staff_by_school(self, school_id: UUID) -> List[Staff]:
-        """Get all staff members for a specific school"""
+        """Get all staff members for a specific school (non-paginated, for backward compatibility)"""
         # Try to get from cache first
         cache_key = f"staff:school:{school_id}"
         cached_staff = await redis_service.get(cache_key)
         
         if cached_staff:
-            # Log cache hit
-            await logging_service.log_cache_operation("get", cache_key, hit=True)
-            process_cache_logs.delay({
-                "operation": "get",
-                "key": cache_key,
-                "hit": True
-            })
             return cached_staff
-        
-        # Log cache miss
-        await logging_service.log_cache_operation("get", cache_key, hit=False)
-        process_cache_logs.delay({
-            "operation": "get",
-            "key": cache_key,
-            "hit": False
-        })
         
         # If not in cache, get from database
         result = await self.db.execute(
@@ -300,24 +286,72 @@ class StaffService:
         )
         staff = result.scalars().all()
         
-        # Log database operation
-        await logging_service.log_database_operation("SELECT", "staff", data={"count": len(staff), "school_id": str(school_id)})
-        process_database_logs.delay({
-            "operation": "SELECT",
-            "table": "staff",
-            "data": {"count": len(staff), "school_id": str(school_id)}
-        })
-        
         # Cache the result
         staff_data = [member.to_dict() for member in staff]
         await redis_service.set(cache_key, staff_data, expire=settings.REDIS_CACHE_TTL)
         
         return staff
+    
+    async def get_staff_by_school_paginated(
+        self, 
+        school_id: UUID, 
+        page: int = 1, 
+        page_size: int = 50
+    ) -> Tuple[List[dict], int]:
+        """Get paginated staff members for a specific school"""
+        base_cache_key = f"staff:school:{school_id}"
+        
+        # Try to get from cache
+        cached_result = await get_paginated_cache(base_cache_key, page, page_size)
+        if cached_result:
+            return cached_result
+        
+        # Build query
+        base_query = select(Staff).filter(
+            Staff.school_id == school_id,
+            Staff.is_deleted == False
+        )
+        
+        # Get total count
+        count_query = select(sql_func.count(Staff.staff_id)).filter(
+            Staff.school_id == school_id,
+            Staff.is_deleted == False
+        )
+        count_result = await self.db.execute(count_query)
+        total = count_result.scalar() or 0
+        
+        # Apply pagination
+        offset = (page - 1) * page_size
+        paginated_query = base_query.offset(offset).limit(page_size)
+        
+        result = await self.db.execute(paginated_query)
+        staff = result.scalars().all()
+        
+        # Convert to dict
+        staff_data = [member.to_dict() for member in staff]
+        
+        # Cache the result
+        await set_paginated_cache(base_cache_key, page, page_size, staff_data, total)
+        
+        return staff_data, total
 
     async def _clear_staff_cache(self, school_id: UUID = None):
-        """Clear staff-related cache"""
+        """Clear staff-related cache including paginated entries"""
+        from utils.clear_cache import clear_cache_by_pattern
+        
+        # Clear all staff cache
         await redis_service.delete("staff:all")
+        
         # Clear school-specific staff cache if school_id is provided
         if school_id:
+            # Clear the base cache key
             await redis_service.delete(f"staff:school:{school_id}")
-        # Note: In a production system, you'd want to track and clear specific school caches
+            
+            # Clear all paginated cache entries for this school
+            # Pattern matches: staff:school:{school_id}:page:*:size:*
+            pattern = f"staff:school:{school_id}*"
+            await clear_cache_by_pattern(pattern)
+            
+            # Also clear individual staff cache entries
+            # We'll clear by pattern since we don't know all staff IDs
+            await clear_cache_by_pattern(f"staff:*:school:{school_id}")

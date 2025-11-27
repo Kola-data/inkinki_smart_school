@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete, join
+from sqlalchemy import select, update, delete, join, func as sql_func
 from sqlalchemy.orm import selectinload
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from uuid import UUID
 from models.teacher import Teacher
 from models.staff import Staff
@@ -11,6 +11,7 @@ from redis_client import redis_service
 from config import settings
 from services.logging_service import logging_service, LogLevel, ActionType
 from tasks.background_tasks import process_database_logs, process_cache_logs
+from utils.cache_utils import get_paginated_cache, set_paginated_cache
 
 class TeacherService:
     """Service class for Teacher CRUD operations with joins"""
@@ -137,6 +138,82 @@ class TeacherService:
         await redis_service.set(cache_key, teachers_list, expire=settings.REDIS_CACHE_TTL)
         
         return teachers_list
+    
+    async def get_all_teachers_with_staff_info_paginated(
+        self, 
+        school_id: UUID, 
+        page: int = 1, 
+        page_size: int = 50
+    ) -> Tuple[List[dict], int]:
+        """Get paginated teachers with staff and school information using joins for a specific school"""
+        base_cache_key = f"teachers:school:{school_id}:with_staff"
+        
+        # Try to get from cache
+        cached_result = await get_paginated_cache(base_cache_key, page, page_size)
+        if cached_result:
+            return cached_result
+        
+        # Build base query with join
+        base_query = select(
+            Teacher.teacher_id,
+            Teacher.staff_id,
+            Teacher.specialized,
+            Teacher.is_active,
+            Teacher.is_deleted,
+            Teacher.created_at,
+            Teacher.updated_at,
+            Staff.staff_name,
+            Staff.email,
+            Staff.staff_role,
+            Staff.staff_profile
+        ).select_from(
+            join(Teacher, Staff, Teacher.staff_id == Staff.staff_id)
+        ).where(
+            Staff.school_id == school_id,
+            Teacher.is_deleted == False,
+            Staff.is_deleted == False
+        )
+        
+        # Get total count
+        count_query = select(sql_func.count(Teacher.teacher_id)).select_from(
+            join(Teacher, Staff, Teacher.staff_id == Staff.staff_id)
+        ).where(
+            Staff.school_id == school_id,
+            Teacher.is_deleted == False,
+            Staff.is_deleted == False
+        )
+        count_result = await self.db.execute(count_query)
+        total = count_result.scalar() or 0
+        
+        # Apply pagination
+        offset = (page - 1) * page_size
+        paginated_query = base_query.offset(offset).limit(page_size)
+        
+        result = await self.db.execute(paginated_query)
+        teachers_data = result.fetchall()
+        
+        # Convert to list of dictionaries
+        teachers_list = []
+        for row in teachers_data:
+            teacher_dict = {
+                "teacher_id": str(row.teacher_id),
+                "staff_id": str(row.staff_id) if row.staff_id else None,
+                "specialized": row.specialized,
+                "is_active": row.is_active,
+                "is_deleted": row.is_deleted,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+                "staff_name": row.staff_name,
+                "staff_email": row.email,
+                "staff_role": row.staff_role,
+                "staff_profile": row.staff_profile
+            }
+            teachers_list.append(teacher_dict)
+        
+        # Cache the result
+        await set_paginated_cache(base_cache_key, page, page_size, teachers_list, total)
+        
+        return teachers_list, total
     
     async def get_teacher_by_id(self, teacher_id: UUID, school_id: UUID) -> Optional[Teacher]:
         """Get a teacher by ID for a specific school"""
@@ -383,9 +460,14 @@ class TeacherService:
         return False
 
     async def _clear_teacher_cache(self, school_id: UUID = None):
-        """Clear teacher-related cache"""
+        """Clear teacher-related cache including paginated entries"""
+        from utils.clear_cache import clear_cache_by_pattern
+        
         await redis_service.delete("teachers:all")
         await redis_service.delete("teachers:all:with_staff")
         # Clear school-specific cache if school_id is provided
         if school_id:
             await redis_service.delete(f"teachers:school:{school_id}:with_staff")
+            # Clear all paginated cache entries for this school
+            pattern = f"teachers:school:{school_id}*"
+            await clear_cache_by_pattern(pattern)

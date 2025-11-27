@@ -9,4 +9,23 @@
 html, body, #root { height: 100%; }
 body { background: var(--bg); }
 
+/* Custom scrollbar for sidebar */
+.sidebar-nav::-webkit-scrollbar {
+	width: 6px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+	background: #5145CD;
+	border-radius: 3px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+	background: #5850EC;
+	border-radius: 3px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+	background: #6B63F0;
+}
+
 

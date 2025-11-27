@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
@@ -31,6 +31,76 @@ export default function Register() {
 	const [schoolTouched, setSchoolTouched] = useState<Partial<Record<keyof SchoolFormData, boolean>>>({});
 	const [loading, setLoading] = useState(false);
 	const navigate = useNavigate();
+
+	// Autocomplete states for school ownership
+	const [ownershipQuery, setOwnershipQuery] = useState('');
+	const [showOwnershipDropdown, setShowOwnershipDropdown] = useState(false);
+	const [ownershipHighlightedIndex, setOwnershipHighlightedIndex] = useState(-1);
+	const ownershipDropdownRef = useRef<HTMLDivElement>(null);
+	const ownershipInputRef = useRef<HTMLInputElement>(null);
+
+	const ownershipOptions = ['Public', 'Private', 'Government', 'Semi-Government', 'International'];
+
+	// Filter ownership options based on search query
+	const filteredOwnershipOptions = ownershipOptions.filter((option) => {
+		if (!ownershipQuery.trim()) return true;
+		return option.toLowerCase().includes(ownershipQuery.toLowerCase());
+	});
+
+	// Keyboard navigation for ownership autocomplete
+	const handleOwnershipKeyDown = (e: React.KeyboardEvent) => {
+		if (!showOwnershipDropdown || filteredOwnershipOptions.length === 0) return;
+		switch (e.key) {
+			case 'ArrowDown':
+				e.preventDefault();
+				setOwnershipHighlightedIndex((prev) => (prev < filteredOwnershipOptions.length - 1 ? prev + 1 : prev));
+				break;
+			case 'ArrowUp':
+				e.preventDefault();
+				setOwnershipHighlightedIndex((prev) => (prev > 0 ? prev - 1 : -1));
+				break;
+			case 'Enter':
+				e.preventDefault();
+				if (ownershipHighlightedIndex >= 0 && ownershipHighlightedIndex < filteredOwnershipOptions.length) {
+					const selected = filteredOwnershipOptions[ownershipHighlightedIndex];
+					handleSchoolChange('school_ownership', selected);
+					setOwnershipQuery(selected);
+					setShowOwnershipDropdown(false);
+				} else if (ownershipHighlightedIndex === -1 && filteredOwnershipOptions.length === 1) {
+					const selected = filteredOwnershipOptions[0];
+					handleSchoolChange('school_ownership', selected);
+					setOwnershipQuery(selected);
+					setShowOwnershipDropdown(false);
+				}
+				break;
+			case 'Escape':
+				setShowOwnershipDropdown(false);
+				setOwnershipHighlightedIndex(-1);
+				break;
+		}
+	};
+
+	// Close dropdown when clicking outside
+	useEffect(() => {
+		const handleClickOutside = (event: MouseEvent) => {
+			if (
+				ownershipDropdownRef.current &&
+				!ownershipDropdownRef.current.contains(event.target as Node) &&
+				ownershipInputRef.current &&
+				!ownershipInputRef.current.contains(event.target as Node)
+			) {
+				setShowOwnershipDropdown(false);
+			}
+		};
+
+		if (showOwnershipDropdown) {
+			document.addEventListener('mousedown', handleClickOutside);
+		}
+
+		return () => {
+			document.removeEventListener('mousedown', handleClickOutside);
+		};
+	}, [showOwnershipDropdown]);
 
 	const validateSchoolField = (field: keyof SchoolFormData, value: string | File | null): boolean => {
 		let error: string | null = null;
@@ -221,18 +291,54 @@ export default function Register() {
 										<label className="block text-sm font-medium text-gray-700 mb-2">
 											SCHOOL OWNERSHIP
 										</label>
-										<select
-											value={schoolData.school_ownership}
-											onChange={(e) => handleSchoolChange('school_ownership', e.target.value)}
-											className="w-full px-4 py-3 border border-gray-300 rounded-[3px] focus:ring-2 focus:ring-purple-600 focus:border-purple-600 outline-none transition"
-										>
-											<option value="">Select ownership type</option>
-											<option value="Public">Public</option>
-											<option value="Private">Private</option>
-											<option value="Government">Government</option>
-											<option value="Semi-Government">Semi-Government</option>
-											<option value="International">International</option>
-										</select>
+										<div className="relative">
+											<input
+												ref={ownershipInputRef}
+												type="text"
+												value={schoolData.school_ownership || ownershipQuery}
+												onChange={(e) => {
+													setOwnershipQuery(e.target.value);
+													setShowOwnershipDropdown(true);
+													setOwnershipHighlightedIndex(-1);
+													if (!e.target.value.trim()) {
+														setShowOwnershipDropdown(false);
+														handleSchoolChange('school_ownership', '');
+													}
+												}}
+												onFocus={() => {
+													if (filteredOwnershipOptions.length > 0) {
+														setShowOwnershipDropdown(true);
+													}
+												}}
+												onKeyDown={handleOwnershipKeyDown}
+												placeholder="Select ownership type"
+												className="w-full px-4 py-3 border border-gray-300 rounded-[3px] focus:ring-2 focus:ring-purple-600 focus:border-purple-600 outline-none transition"
+											/>
+											{showOwnershipDropdown && filteredOwnershipOptions.length > 0 && (
+												<div
+													ref={ownershipDropdownRef}
+													className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-[3px] shadow-lg max-h-60 overflow-auto"
+												>
+													{filteredOwnershipOptions.map((option, index) => (
+														<button
+															key={option}
+															type="button"
+															onClick={() => {
+																handleSchoolChange('school_ownership', option);
+																setOwnershipQuery(option);
+																setShowOwnershipDropdown(false);
+															}}
+															onMouseEnter={() => setOwnershipHighlightedIndex(index)}
+															className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors ${
+																index === ownershipHighlightedIndex ? 'bg-purple-50' : ''
+															} ${schoolData.school_ownership === option ? 'bg-purple-100 font-medium' : ''}`}
+														>
+															<div className="text-sm font-medium text-gray-900">{option}</div>
+														</button>
+													))}
+												</div>
+											)}
+										</div>
 									</div>
 
 									<div>

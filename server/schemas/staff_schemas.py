@@ -1,13 +1,11 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional
+from pydantic import BaseModel, EmailStr, validator
+from typing import Optional, Union
 from datetime import datetime, date
 from uuid import UUID
 
 class StaffBase(BaseModel):
     """Base schema for Staff with common fields"""
-    school_id: UUID
     staff_profile: Optional[str] = None
-    staff_name: str
     staff_dob: Optional[date] = None
     staff_gender: Optional[str] = None
     staff_nid_photo: Optional[str] = None
@@ -16,11 +14,13 @@ class StaffBase(BaseModel):
     employment_type: Optional[str] = None
     qualifications: Optional[str] = None
     experience: Optional[str] = None
-    email: EmailStr
     phone: Optional[str] = None
 
 class StaffCreate(StaffBase):
-    """Schema for creating a new staff member"""
+    """Schema for creating a new staff member - only staff_name, email, password, and school_id are required"""
+    school_id: UUID
+    staff_name: str
+    email: EmailStr
     password: str
     is_active: bool = True
 
@@ -37,14 +37,26 @@ class StaffUpdate(BaseModel):
     employment_type: Optional[str] = None
     qualifications: Optional[str] = None
     experience: Optional[str] = None
-    email: Optional[EmailStr] = None
+    email: Optional[Union[EmailStr, str]] = None
     phone: Optional[str] = None
     password: Optional[str] = None
     is_active: Optional[bool] = None
+    
+    @validator('email', pre=True)
+    def validate_email(cls, v):
+        """Convert empty strings to None for email fields"""
+        if v == '' or v is None:
+            return None
+        if isinstance(v, str) and v.strip() == '':
+            return None
+        return v
 
 class StaffResponse(StaffBase):
     """Schema for staff response"""
     staff_id: UUID
+    school_id: Optional[UUID] = None
+    staff_name: str
+    email: EmailStr
     is_active: bool
     is_deleted: bool
     created_at: Optional[datetime] = None

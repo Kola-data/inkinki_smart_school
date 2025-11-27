@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { getArrayFromResponse } from '../../../utils/apiHelpers';
 import {
 	BuildingOfficeIcon,
 	MagnifyingGlassIcon,
@@ -17,6 +18,7 @@ import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import ClassForm from '../components/ClassForm';
 import ClassViewModal from '../components/ClassViewModal';
+import { isTeacher } from '../../../utils/rolePermissions';
 
 interface ClassMember {
 	cls_id: string;
@@ -128,14 +130,12 @@ export default function ClassManagement() {
 				setLoading(true);
 				const timestamp = new Date().getTime();
 				const { data } = await api.get(`/classes/?school_id=${schoolId}&_t=${timestamp}`);
-				setClasses(data || []);
+				setClasses(getArrayFromResponse(data));
 			} catch (error: any) {
 				const errorMessage = error.response?.data?.detail || 'Failed to fetch classes';
 				if (error.response?.status !== 403) {
 					toast.error(errorMessage);
-				}
-				console.error('Error fetching classes:', error);
-			} finally {
+				}} finally {
 				setLoading(false);
 			}
 		};
@@ -151,7 +151,8 @@ export default function ClassManagement() {
 			try {
 				const timestamp = new Date().getTime();
 				const { data } = await api.get(`/teachers/?school_id=${schoolId}&_t=${timestamp}`);
-				const teachers = (data || []).filter((t: any) => t.is_active);
+				const teachersData = data?.items || data || [];
+				const teachers = Array.isArray(teachersData) ? teachersData.filter((t: any) => t.is_active) : [];
 				// Map to TeacherMember format
 				const mappedTeachers: TeacherMember[] = teachers.map((t: any) => ({
 					teacher_id: t.teacher_id,
@@ -179,7 +180,8 @@ export default function ClassManagement() {
 			try {
 				const timestamp = new Date().getTime();
 				const { data } = await api.get(`/teachers/?school_id=${schoolId}&_t=${timestamp}`);
-				const teachers = (data || []).filter((t: any) => t.is_active);
+				const teachersData = data?.items || data || [];
+				const teachers = Array.isArray(teachersData) ? teachersData.filter((t: any) => t.is_active) : [];
 				const mappedTeachers: TeacherMember[] = teachers.map((t: any) => ({
 					teacher_id: t.teacher_id,
 					staff_name: t.staff_name,
@@ -301,17 +303,32 @@ export default function ClassManagement() {
 
 	// Refresh classes data with cache busting
 	const refreshClasses = async () => {
-		if (!schoolId) return;
+		if (!schoolId) {
+			console.warn('Cannot refresh classes: schoolId is missing');
+			return;
+		}
 
 		try {
 			const timestamp = new Date().getTime();
 			const { data } = await api.get(`/classes/?school_id=${schoolId}&_t=${timestamp}`);
-			setClasses(data || []);
+			
+			// Handle paginated response
+			let newClassesData: ClassMember[] = [];
+			if (data && Array.isArray(data.items)) {
+				newClassesData = data.items;
+			} else if (Array.isArray(data)) {
+				newClassesData = data;
+			} else {
+				newClassesData = getArrayFromResponse(data);
+			}
+			
+			// Force state update by creating a new array reference
+			setClasses([...newClassesData]);
 			setCurrentPage(1);
 		} catch (error: any) {
-			const errorMessage = error.response?.data?.detail || 'Failed to refresh classes data';
+			console.error('Refresh classes error:', error);
+			const errorMessage = error.response?.data?.detail || error.message || 'Failed to refresh classes data';
 			toast.error(errorMessage);
-			console.error('Error refreshing classes:', error);
 		}
 	};
 
@@ -335,6 +352,8 @@ export default function ClassManagement() {
 			toast.success('Class created successfully!');
 			setCreateConfirmOpen(false);
 			setFormDataToSubmit(null);
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			await refreshClasses();
 		} catch (error: any) {
 			toast.error(error.response?.data?.detail || 'Failed to create class');
@@ -361,6 +380,8 @@ export default function ClassManagement() {
 			setUpdateConfirmOpen(false);
 			setSelectedClass(null);
 			setFormDataToSubmit(null);
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			await refreshClasses();
 		} catch (error: any) {
 			toast.error(error.response?.data?.detail || 'Failed to update class');
@@ -379,6 +400,8 @@ export default function ClassManagement() {
 			toast.success('Class deleted successfully!');
 			setDeleteConfirmOpen(false);
 			setSelectedClass(null);
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			await refreshClasses();
 		} catch (error: any) {
 			toast.error(error.response?.data?.detail || 'Failed to delete class');
@@ -414,7 +437,7 @@ export default function ClassManagement() {
 		return (
 			<div className="flex bg-gray-50 min-h-screen">
 				<Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-				<div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+				<div className="flex-1 flex flex-col min-h-screen overflow-hidden lg:ml-64">
 					<Topbar onMenuClick={toggleSidebar} sidebarOpen={sidebarOpen} />
 					<main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
 						<div className="text-center">
@@ -431,7 +454,7 @@ export default function ClassManagement() {
 		return (
 			<div className="flex bg-gray-50 min-h-screen">
 				<Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-				<div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+				<div className="flex-1 flex flex-col min-h-screen overflow-hidden lg:ml-64">
 					<Topbar onMenuClick={toggleSidebar} sidebarOpen={sidebarOpen} />
 					<main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
 						<div className="text-center">
@@ -446,7 +469,7 @@ export default function ClassManagement() {
 	return (
 		<div className="flex bg-gray-50 min-h-screen">
 			<Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-			<div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+			<div className="flex-1 flex flex-col min-h-screen overflow-hidden lg:ml-64">
 				<Topbar onMenuClick={toggleSidebar} sidebarOpen={sidebarOpen} />
 				<main className="flex-1 overflow-y-auto p-6 space-y-6">
 					{/* Header */}
@@ -455,35 +478,41 @@ export default function ClassManagement() {
 							<h1 className="text-3xl font-bold text-gray-900">Class Management</h1>
 							<p className="text-gray-600 mt-1">Manage your school classes</p>
 						</div>
-						<button
-							onClick={openCreateModal}
-							className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-[3px] shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
-						>
-							<PlusIcon className="w-5 h-5" />
-							<span>Add Class</span>
-						</button>
+						{!isTeacher() && (
+							<button
+								onClick={openCreateModal}
+								className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-[3px] shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
+							>
+								<PlusIcon className="w-5 h-5" />
+								<span>Add Class</span>
+							</button>
+						)}
 					</div>
 
-					{/* Analytics Card */}
-					<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6">
-						<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-							<div className="flex items-center gap-3">
+					{/* Analytics Cards */}
+					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+						<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6 relative overflow-hidden">
+							<div className="absolute top-0 left-0 right-0 h-1 bg-blue-600"></div>
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="text-sm font-medium text-gray-600">Total Classes</p>
+									<p className="text-3xl font-bold text-gray-900 mt-2">{analytics.total}</p>
+								</div>
 								<div className="p-3 bg-blue-100 rounded-[3px]">
 									<BuildingOfficeIcon className="w-6 h-6 text-blue-600" />
 								</div>
-								<div>
-									<p className="text-sm font-medium text-gray-600">Total Classes</p>
-									<p className="text-2xl font-bold text-gray-900 mt-1">{analytics.total}</p>
-								</div>
 							</div>
+						</div>
 
-							<div className="flex items-center gap-3">
-								<div className="p-3 bg-purple-100 rounded-[3px]">
-									<SparklesIcon className="w-6 h-6 text-purple-600" />
-								</div>
+						<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6 relative overflow-hidden">
+							<div className="absolute top-0 left-0 right-0 h-1 bg-purple-600"></div>
+							<div className="flex items-center justify-between">
 								<div>
 									<p className="text-sm font-medium text-gray-600">Class Types</p>
-									<p className="text-2xl font-bold text-purple-600 mt-1">{analytics.types}</p>
+									<p className="text-3xl font-bold text-purple-600 mt-2">{analytics.types}</p>
+								</div>
+								<div className="p-3 bg-purple-100 rounded-[3px]">
+									<SparklesIcon className="w-6 h-6 text-purple-600" />
 								</div>
 							</div>
 						</div>
@@ -687,20 +716,24 @@ export default function ClassManagement() {
 														>
 															<EyeIcon className="w-5 h-5" />
 														</button>
-														<button
-															onClick={() => openEditModal(classItem)}
-															className="p-2 text-green-600 hover:bg-green-50 rounded-[3px] transition-colors"
-															title="Edit"
-														>
-															<PencilIcon className="w-5 h-5" />
-														</button>
-														<button
-															onClick={() => openDeleteConfirm(classItem)}
-															className="p-2 text-red-600 hover:bg-red-50 rounded-[3px] transition-colors"
-															title="Delete"
-														>
-															<TrashIcon className="w-5 h-5" />
-														</button>
+														{!isTeacher() && (
+															<>
+																<button
+																	onClick={() => openEditModal(classItem)}
+																	className="p-2 text-green-600 hover:bg-green-50 rounded-[3px] transition-colors"
+																	title="Edit"
+																>
+																	<PencilIcon className="w-5 h-5" />
+																</button>
+																<button
+																	onClick={() => openDeleteConfirm(classItem)}
+																	className="p-2 text-red-600 hover:bg-red-50 rounded-[3px] transition-colors"
+																	title="Delete"
+																>
+																	<TrashIcon className="w-5 h-5" />
+																</button>
+															</>
+														)}
 													</div>
 												</td>
 											</tr>
@@ -760,7 +793,7 @@ export default function ClassManagement() {
 				isOpen={createModalOpen}
 				onClose={() => setCreateModalOpen(false)}
 				title="Create Class"
-				size="lg"
+				size="xl"
 			>
 				<ClassForm
 					availableTeachers={availableTeachers}
@@ -778,7 +811,7 @@ export default function ClassManagement() {
 					setSelectedClass(null);
 				}}
 				title="Edit Class"
-				size="lg"
+				size="xl"
 			>
 				{selectedClass && (
 					<ClassForm
@@ -818,7 +851,7 @@ export default function ClassManagement() {
 				title="Create Class"
 				message={`Are you sure you want to create "${formDataToSubmit?.cls_name || 'this class'}"?`}
 				confirmText="Create"
-				confirmColor="green"
+				type="info"
 				loading={formLoading}
 			/>
 
@@ -832,7 +865,7 @@ export default function ClassManagement() {
 				title="Update Class"
 				message={`Are you sure you want to update "${selectedClass?.cls_name || 'this class'}"?`}
 				confirmText="Update"
-				confirmColor="green"
+				type="info"
 				loading={formLoading}
 			/>
 
@@ -846,7 +879,7 @@ export default function ClassManagement() {
 				title="Delete Class"
 				message={`Are you sure you want to delete "${selectedClass?.cls_name || 'this class'}"? This action cannot be undone.`}
 				confirmText="Delete"
-				confirmColor="red"
+				type="danger"
 				loading={deleteLoading}
 			/>
 		</div>

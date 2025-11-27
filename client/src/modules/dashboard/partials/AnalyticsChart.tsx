@@ -6,9 +6,13 @@ interface ChartDataPoint {
 	value: number;
 }
 
-export default function AnalyticsChart() {
+interface AnalyticsChartProps {
+	academicYearId?: string | null;
+}
+
+export default function AnalyticsChart({ academicYearId = null }: AnalyticsChartProps) {
 	const [schoolId, setSchoolId] = useState<string | null>(null);
-	const { stats, loading } = useDashboardStats(schoolId);
+	const { stats, loading } = useDashboardStats(schoolId, academicYearId);
 	const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
 
 	useEffect(() => {
@@ -40,7 +44,8 @@ export default function AnalyticsChart() {
 
 	if (loading) {
 		return (
-			<div className="bg-white rounded-[3px] shadow-card p-6">
+			<div className="bg-white rounded-[3px] shadow-card p-6 border border-gray-100 relative overflow-hidden">
+				<div className="absolute top-0 left-0 right-0 h-1 bg-gray-300"></div>
 				<h3 className="text-lg font-semibold text-gray-800 mb-4">Overview Statistics</h3>
 				<div className="h-64 grid place-items-center">
 					<div className="animate-pulse text-gray-400">Loading chart...</div>
@@ -50,17 +55,21 @@ export default function AnalyticsChart() {
 	}
 
 	return (
-		<div className="bg-white rounded-[3px] shadow-card p-6">
+		<div className="bg-white rounded-[3px] shadow-card p-6 border border-gray-100 relative overflow-hidden">
+			<div className="absolute top-0 left-0 right-0 h-1 bg-primary-600"></div>
 			<div className="flex items-center justify-between mb-6">
-				<h3 className="text-lg font-semibold text-gray-800">Overview Statistics</h3>
-				<span className="text-sm text-gray-500">Last 30 days</span>
+				<div>
+					<h3 className="text-lg font-semibold text-gray-800">Overview Statistics</h3>
+					<p className="text-xs text-gray-500 mt-1">Key metrics comparison across school entities</p>
+				</div>
+				<span className="text-sm text-gray-500">Current data</span>
 			</div>
 			<div className="space-y-4">
 				{chartData.map((item, index) => (
 					<div key={index} className="space-y-2">
 						<div className="flex items-center justify-between text-sm">
 							<span className="font-medium text-gray-700">{item.label}</span>
-							<span className="text-gray-600 font-semibold">{item.value}</span>
+							<span className="text-gray-900 font-bold">{item.value.toLocaleString()}</span>
 						</div>
 						<div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
 							<div
@@ -68,6 +77,9 @@ export default function AnalyticsChart() {
 								style={{ width: `${(item.value / maxValue) * 100}%` }}
 							/>
 						</div>
+						<p className="text-xs text-gray-500">
+							{maxValue > 0 ? `${((item.value / maxValue) * 100).toFixed(1)}% of maximum` : 'No data'}
+						</p>
 					</div>
 				))}
 			</div>

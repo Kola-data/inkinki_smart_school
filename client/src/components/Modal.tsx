@@ -6,7 +6,7 @@ interface ModalProps {
 	onClose: () => void;
 	title: string;
 	children: React.ReactNode;
-	size?: 'sm' | 'md' | 'lg' | 'xl';
+	size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl';
 }
 
 export default function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
@@ -42,10 +42,13 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' }:
 		md: 'sm:max-w-lg',
 		lg: 'sm:max-w-2xl',
 		xl: 'sm:max-w-4xl',
+		'2xl': 'sm:max-w-6xl',
+		'3xl': 'sm:max-w-7xl',
+		'4xl': 'sm:max-w-[90vw]',
 	};
 
 	return (
-		<div className="fixed inset-0 z-50 overflow-y-auto">
+		<div className="fixed inset-0 z-[110] overflow-y-auto">
 			<div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
 				<div
 					className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
@@ -68,7 +71,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' }:
 								<XMarkIcon className="w-6 h-6" />
 							</button>
 						</div>
-						<div className="px-6 py-4 max-h-[calc(100vh-200px)] overflow-y-auto">
+						<div className="px-6 py-4 max-h-[calc(100vh-180px)] overflow-y-auto">
 							{children}
 						</div>
 					</div>

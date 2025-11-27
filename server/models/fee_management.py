@@ -9,13 +9,14 @@ class FeeManagement(Base):
     __tablename__ = "fee_management"
     
     fee_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.school_id"), nullable=False)
-    std_id = Column(UUID(as_uuid=True), ForeignKey("students.std_id"), nullable=False)
-    fee_type_id = Column(UUID(as_uuid=True), ForeignKey("fee_types.fee_type_id"), nullable=False)
-    academic_id = Column(UUID(as_uuid=True), ForeignKey("academic_years.academic_id"), nullable=False)
+    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.school_id"), nullable=False, index=True)
+    std_id = Column(UUID(as_uuid=True), ForeignKey("students.std_id"), nullable=False, index=True)
+    fee_type_id = Column(UUID(as_uuid=True), ForeignKey("fee_types.fee_type_id"), nullable=False, index=True)
+    academic_id = Column(UUID(as_uuid=True), ForeignKey("academic_years.academic_id"), nullable=False, index=True)
     term = Column(String(50), nullable=False)
     amount_paid = Column(Float, nullable=False, default=0.0)
     status = Column(String(50), nullable=False, default="pending")
+    invoice_img = Column(String(500))  # URL or path to invoice image
     is_deleted = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -41,6 +42,7 @@ class FeeManagement(Base):
             "term": self.term,
             "amount_paid": self.amount_paid,
             "status": self.status,
+            "invoice_img": self.invoice_img,
             "is_deleted": self.is_deleted,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None

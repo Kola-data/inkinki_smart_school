@@ -9,7 +9,7 @@ class Parent(Base):
     __tablename__ = "parents"
     
     par_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.school_id"), nullable=False)
+    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.school_id"), nullable=False, index=True)
     mother_name = Column(String(255))
     father_name = Column(String(255))
     mother_phone = Column(String(20))

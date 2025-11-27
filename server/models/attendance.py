@@ -9,11 +9,11 @@ class Attendance(Base):
     __tablename__ = "students_attendance"
     
     att_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.school_id"), nullable=False)
-    teacher_id = Column(UUID(as_uuid=True), ForeignKey("teachers.teacher_id"), nullable=False)
-    std_id = Column(UUID(as_uuid=True), ForeignKey("students.std_id"), nullable=False)
-    subj_id = Column(UUID(as_uuid=True), ForeignKey("subjects.subj_id"), nullable=False)
-    cls_id = Column(UUID(as_uuid=True), ForeignKey("classes.cls_id"), nullable=True)
+    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.school_id"), nullable=False, index=True)
+    teacher_id = Column(UUID(as_uuid=True), ForeignKey("teachers.teacher_id"), nullable=False, index=True)
+    std_id = Column(UUID(as_uuid=True), ForeignKey("students.std_id"), nullable=False, index=True)
+    subj_id = Column(UUID(as_uuid=True), ForeignKey("subjects.subj_id"), nullable=False, index=True)
+    cls_id = Column(UUID(as_uuid=True), ForeignKey("classes.cls_id"), nullable=True, index=True)
     date = Column(DateTime(timezone=True), nullable=False)  # date_hours as specified
     status = Column(String(50))
     is_deleted = Column(Boolean, default=False)

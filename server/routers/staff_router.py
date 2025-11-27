@@ -1,27 +1,45 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from sqlalchemy.exc import IntegrityError
+from typing import List, Optional
 from uuid import UUID
 from pathlib import Path
 from database import get_db
 from services.staff_service import StaffService
 from schemas.staff_schemas import StaffCreate, StaffUpdate, StaffResponse, StaffStatusUpdate, StaffSoftDelete
+from schemas.pagination_schemas import PaginatedResponse
 from utils.file_utils import save_base64_file, delete_file
 from utils.school_utils import verify_school_active
+from utils.pagination import calculate_total_pages
+from utils.auth_dependencies import get_current_staff
+from models.staff import Staff
 
 router = APIRouter(prefix="/staff", tags=["Staff"])
 
-@router.get("/", response_model=List[StaffResponse])
-async def get_all_staff(school_id: UUID, db: AsyncSession = Depends(get_db)):
-    """Get all staff members for a specific school"""
+@router.get("/", response_model=PaginatedResponse[dict])
+async def get_all_staff(
+    school_id: UUID,
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(50, ge=1, le=100, description="Number of items per page (max 100)"),
+    current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get paginated staff members for a specific school"""
     try:
         # Verify school is active and not deleted
         await verify_school_active(school_id, db)
         
         staff_service = StaffService(db)
-        staff = await staff_service.get_staff_by_school(school_id)
-        return staff
+        staff, total = await staff_service.get_staff_by_school_paginated(school_id, page=page, page_size=page_size)
+        
+        return PaginatedResponse(
+            items=staff,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=calculate_total_pages(total, page_size)
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -31,7 +49,12 @@ async def get_all_staff(school_id: UUID, db: AsyncSession = Depends(get_db)):
         )
 
 @router.get("/{staff_id}", response_model=StaffResponse)
-async def get_staff_by_id(staff_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_staff_by_id(
+    staff_id: UUID,
+    school_id: UUID,
+    current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)
+):
     """Get a staff member by ID for a specific school"""
     try:
         # Verify school is active and not deleted
@@ -54,7 +77,11 @@ async def get_staff_by_id(staff_id: UUID, school_id: UUID, db: AsyncSession = De
         )
 
 @router.post("/", response_model=StaffResponse, status_code=status.HTTP_201_CREATED)
-async def create_staff(staff_data: StaffCreate, db: AsyncSession = Depends(get_db)):
+async def create_staff(
+    staff_data: StaffCreate,
+    current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)
+):
     """Create a new staff member"""
     try:
         # Verify school is active and not deleted
@@ -94,6 +121,26 @@ async def create_staff(staff_data: StaffCreate, db: AsyncSession = Depends(get_d
         return staff
     except HTTPException:
         raise
+    except IntegrityError as e:
+        await db.rollback()
+        error_str = str(e.orig) if hasattr(e, 'orig') else str(e)
+        # Check if it's a duplicate email error
+        if 'staff_email_key' in error_str or 'email' in error_str.lower():
+            email = staff_data.email if hasattr(staff_data, 'email') else 'this email'
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Email {email} is already registered. Please use a different email address."
+            )
+        # Check for other unique constraint violations
+        if 'unique' in error_str.lower() or 'duplicate' in error_str.lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A staff member with this information already exists. Please check the email or other unique fields."
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Database constraint violation. Please check your input data."
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -101,7 +148,13 @@ async def create_staff(staff_data: StaffCreate, db: AsyncSession = Depends(get_d
         )
 
 @router.put("/{staff_id}", response_model=StaffResponse)
-async def update_staff(staff_id: UUID, staff_data: StaffUpdate, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def update_staff(
+    staff_id: UUID,
+    staff_data: StaffUpdate,
+    school_id: UUID,
+    current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)
+):
     """Update a staff member for a specific school"""
     try:
         # Verify school is active and not deleted
@@ -185,7 +238,12 @@ async def update_staff(staff_id: UUID, staff_data: StaffUpdate, school_id: UUID,
         )
 
 @router.delete("/{staff_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def soft_delete_staff(staff_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def soft_delete_staff(
+    staff_id: UUID,
+    school_id: UUID,
+    current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)
+):
     """Soft delete a staff member for a specific school"""
     try:
         # Verify school is active and not deleted
@@ -220,7 +278,12 @@ async def soft_delete_staff(staff_id: UUID, school_id: UUID, db: AsyncSession = 
         )
 
 @router.patch("/{staff_id}/activate", status_code=status.HTTP_200_OK)
-async def activate_staff(staff_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def activate_staff(
+    staff_id: UUID,
+    school_id: UUID,
+    current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)
+):
     """Activate a staff member for a specific school"""
     try:
         # Verify school is active and not deleted
@@ -256,7 +319,12 @@ async def activate_staff(staff_id: UUID, school_id: UUID, db: AsyncSession = Dep
         )
 
 @router.patch("/{staff_id}/deactivate", status_code=status.HTTP_200_OK)
-async def deactivate_staff(staff_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def deactivate_staff(
+    staff_id: UUID,
+    school_id: UUID,
+    current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)
+):
     """Deactivate a staff member for a specific school"""
     try:
         # Verify school is active and not deleted
@@ -292,7 +360,11 @@ async def deactivate_staff(staff_id: UUID, school_id: UUID, db: AsyncSession = D
         )
 
 @router.get("/{staff_id}/profile", response_class=FileResponse, tags=["Staff"])
-async def get_staff_profile(staff_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_staff_profile(
+    staff_id: UUID,
+    current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)
+):
     """Get staff profile image by staff ID"""
     try:
         staff_service = StaffService(db)

@@ -112,3 +112,128 @@ def process_cache_logs(cache_data: dict):
         
     except Exception as exc:
         return {"status": "error", "error": str(exc)}
+
+@celery_app.task
+def insert_error_log_to_db(log_data: dict):
+    """Background task to insert error logs into the database"""
+    try:
+        from database import AsyncSessionLocal
+        from models.logs import Log
+        from sqlalchemy import select
+        from uuid import UUID, uuid4
+        import json
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        async def insert_log():
+            async with AsyncSessionLocal() as db:
+                try:
+                    # Extract data from log_data
+                    message = log_data.get("message", "")
+                    action = log_data.get("action", "ERROR")
+                    user_id = log_data.get("user_id")
+                    endpoint = log_data.get("endpoint")
+                    data = log_data.get("data", {})
+                    created_at = datetime.now()
+                    
+                    # Extract table name
+                    table_name = None
+                    if 'table' in data:
+                        table_name = data['table']
+                    elif 'Database' in message and 'on' in message:
+                        parts = message.split(' on ')
+                        if len(parts) > 1:
+                            table_name = parts[1].strip()
+                    
+                    # Extract record_id
+                    record_id = None
+                    if 'record_id' in data and data['record_id']:
+                        try:
+                            record_id = UUID(data['record_id'])
+                        except:
+                            pass
+                    
+                    # Extract IP and user agent
+                    ip_address = data.get('client_ip') or data.get('ip_address')
+                    user_agent = data.get('user_agent')
+                    
+                    # Determine user_type
+                    user_type = None
+                    if user_id:
+                        if 'staff' in (endpoint or '').lower():
+                            user_type = 'staff'
+                        elif 'teacher' in (endpoint or '').lower():
+                            user_type = 'teacher'
+                        elif 'student' in (endpoint or '').lower():
+                            user_type = 'student'
+                        elif 'system' in (endpoint or '').lower():
+                            user_type = 'admin'
+                        else:
+                            user_type = 'admin'
+                    
+                    # Convert user_id to UUID
+                    user_id_uuid = None
+                    if user_id:
+                        try:
+                            user_id_uuid = UUID(user_id)
+                        except:
+                            pass
+                    
+                    # Store relevant data
+                    new_values = None
+                    if data:
+                        relevant_data = {
+                            'url': data.get('url'),
+                            'process_time': data.get('process_time'),
+                            'response_size': data.get('response_size'),
+                            'error_type': data.get('error_type'),
+                            'context': data.get('context'),
+                        }
+                        relevant_data = {k: v for k, v in relevant_data.items() if v is not None}
+                        if relevant_data:
+                            new_values = json.dumps(relevant_data)
+                    
+                    # Check for duplicates (within same second)
+                    existing = await db.execute(
+                        select(Log).filter(
+                            Log.message == message[:500],
+                            Log.created_at >= created_at.replace(microsecond=0),
+                            Log.status == "ERROR"
+                        )
+                    )
+                    if existing.scalar_one_or_none():
+                        return  # Skip duplicates
+                    
+                    # Create log entry
+                    log_entry = Log(
+                        log_id=uuid4(),
+                        user_id=user_id_uuid,
+                        user_type=user_type,
+                        action=action,
+                        message=message,
+                        table_name=table_name,
+                        record_id=record_id,
+                        old_values=None,
+                        new_values=new_values,
+                        ip_address=ip_address,
+                        user_agent=user_agent,
+                        status="ERROR",
+                        error_message=message,
+                        created_at=created_at
+                    )
+                    
+                    db.add(log_entry)
+                    await db.commit()
+                    
+                except Exception as e:
+                    await db.rollback()
+                    print(f"Error inserting error log to database: {str(e)}")
+        
+        loop.run_until_complete(insert_log())
+        loop.close()
+        
+        return {"status": "success", "message": "Error log inserted to database"}
+        
+    except Exception as exc:
+        return {"status": "error", "error": str(exc)}

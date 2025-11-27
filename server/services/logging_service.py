@@ -5,6 +5,7 @@ from typing import Dict, Any, Optional
 from enum import Enum
 import asyncio
 from pathlib import Path
+from uuid import UUID, uuid4
 
 class LogLevel(Enum):
     """Log levels with corresponding icons"""
@@ -91,9 +92,13 @@ class LoggingService:
         log_entry = self._format_log_entry(level, action, message, data, user_id, endpoint)
         log_file = self._get_log_file_path(log_type)
         
-        # Use asyncio to write to file
+        # Always write to file (existing behavior)
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, self._write_to_file, log_file, log_entry)
+        
+        # If it's an error log, also insert into database
+        if level == LogLevel.ERROR:
+            asyncio.create_task(self._insert_error_log_to_db(level, action, message, data, user_id, endpoint))
     
     def _write_to_file(self, log_file: Path, log_entry: str) -> None:
         """Write log entry to file (synchronous)"""
@@ -112,8 +117,13 @@ class LoggingService:
         log_entry = self._format_log_entry(level, action, message, data, user_id, endpoint)
         log_file = self._get_log_file_path(log_type)
         
+        # Always write to file (existing behavior)
         with open(log_file, "a", encoding="utf-8") as f:
             f.write(log_entry)
+        
+        # If it's an error log, also insert into database (async, non-blocking)
+        if level == LogLevel.ERROR:
+            asyncio.create_task(self._insert_error_log_to_db(level, action, message, data, user_id, endpoint))
     
     async def log_api_request(self, 
                              method: str, 
@@ -223,6 +233,47 @@ class LoggingService:
             {"task_name": task_name, "status": status, **data} if data else {"task_name": task_name, "status": status},
             user_id
         )
+    
+    async def _insert_error_log_to_db(self,
+                                     level: LogLevel,
+                                     action: ActionType,
+                                     message: str,
+                                     data: Optional[Dict[str, Any]] = None,
+                                     user_id: Optional[str] = None,
+                                     endpoint: Optional[str] = None) -> None:
+        """Insert error log into database using background task (non-blocking)"""
+        try:
+            from tasks.background_tasks import insert_error_log_to_db
+            from utils.celery_utils import safe_celery_call
+            
+            # Map action icon to action string
+            action_str = action.value
+            if "API Request" in message:
+                action_str = "API_REQUEST"
+            elif "API Response" in message:
+                action_str = "API_RESPONSE"
+            elif "Database" in message or "🗄️" in action.value:
+                action_str = "DATABASE_QUERY"
+            elif "Cache" in message:
+                action_str = "CACHE_OPERATION"
+            else:
+                action_str = action.value or "ERROR"
+            
+            # Call background task to insert error log
+            safe_celery_call(
+                insert_error_log_to_db,
+                {
+                    "message": message,
+                    "action": action_str,
+                    "user_id": user_id,
+                    "endpoint": endpoint,
+                    "data": data or {}
+                }
+            )
+        except Exception as e:
+            # Silently fail - don't break logging if background task fails
+            # File logging will still work
+            pass
 
 # Global logging service instance
 logging_service = LoggingService()

@@ -12,11 +12,14 @@ from schemas.academic_year_schemas import (
     AcademicYearSoftDelete
 )
 from utils.school_utils import verify_school_active
+from utils.auth_dependencies import get_current_staff
+from models.staff import Staff
 
 router = APIRouter(prefix="/academic-years", tags=["Academic Years"])
 
 @router.get("/", response_model=List[AcademicYearResponse])
-async def get_all_academic_years(school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_all_academic_years(school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Get all academic years for a specific school"""
     try:
         await verify_school_active(school_id, db)
@@ -30,7 +33,8 @@ async def get_all_academic_years(school_id: UUID, db: AsyncSession = Depends(get
         )
 
 @router.get("/all", response_model=List[dict])
-async def get_all_academic_years_for_school(school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_all_academic_years_for_school(school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Get all academic years (current or not) for a specific school"""
     try:
         await verify_school_active(school_id, db)
@@ -44,7 +48,8 @@ async def get_all_academic_years_for_school(school_id: UUID, db: AsyncSession = 
         )
 
 @router.get("/current", response_model=AcademicYearResponse)
-async def get_current_academic_year(school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_current_academic_year(school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Get the current academic year for a specific school"""
     try:
         await verify_school_active(school_id, db)
@@ -65,7 +70,8 @@ async def get_current_academic_year(school_id: UUID, db: AsyncSession = Depends(
         )
 
 @router.get("/{academic_id}", response_model=AcademicYearResponse)
-async def get_academic_year_by_id(academic_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_academic_year_by_id(academic_id: UUID, school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Get an academic year by ID for a specific school"""
     try:
         await verify_school_active(school_id, db)
@@ -86,7 +92,8 @@ async def get_academic_year_by_id(academic_id: UUID, school_id: UUID, db: AsyncS
         )
 
 @router.post("/", response_model=AcademicYearResponse, status_code=status.HTTP_201_CREATED)
-async def create_academic_year(academic_year_data: AcademicYearCreate, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def create_academic_year(academic_year_data: AcademicYearCreate, school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Create a new academic year for a specific school"""
     try:
         await verify_school_active(school_id, db)
@@ -100,7 +107,8 @@ async def create_academic_year(academic_year_data: AcademicYearCreate, school_id
         )
 
 @router.put("/{academic_id}", response_model=AcademicYearResponse)
-async def update_academic_year(academic_id: UUID, academic_year_data: AcademicYearUpdate, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def update_academic_year(academic_id: UUID, academic_year_data: AcademicYearUpdate, school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Update an academic year for a specific school"""
     try:
         await verify_school_active(school_id, db)
@@ -121,7 +129,8 @@ async def update_academic_year(academic_id: UUID, academic_year_data: AcademicYe
         )
 
 @router.delete("/{academic_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def soft_delete_academic_year(academic_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def soft_delete_academic_year(academic_id: UUID, school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Soft delete an academic year for a specific school"""
     try:
         await verify_school_active(school_id, db)
@@ -141,7 +150,8 @@ async def soft_delete_academic_year(academic_id: UUID, school_id: UUID, db: Asyn
         )
 
 @router.patch("/{academic_id}/set-current", status_code=status.HTTP_200_OK)
-async def set_current_academic_year(academic_id: UUID, school_id: UUID, db: AsyncSession = Depends(get_db)):
+async def set_current_academic_year(academic_id: UUID, school_id: UUID, current_staff: Staff = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db)):
     """Set an academic year as current for a specific school (deactivates all others for that school)"""
     try:
         await verify_school_active(school_id, db)

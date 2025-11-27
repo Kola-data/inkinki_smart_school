@@ -1,5 +1,5 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional
+from pydantic import BaseModel, EmailStr, validator
+from typing import Optional, Union
 from datetime import datetime
 from uuid import UUID
 
@@ -10,10 +10,19 @@ class ParentBase(BaseModel):
     father_name: Optional[str] = None
     mother_phone: Optional[str] = None
     father_phone: Optional[str] = None
-    mother_email: Optional[EmailStr] = None
-    father_email: Optional[EmailStr] = None
+    mother_email: Optional[Union[EmailStr, str]] = None
+    father_email: Optional[Union[EmailStr, str]] = None
     par_address: Optional[str] = None
     par_type: Optional[str] = None
+    
+    @validator('mother_email', 'father_email', pre=True)
+    def validate_email(cls, v):
+        """Convert empty strings to None for email fields"""
+        if v == '' or v is None:
+            return None
+        if isinstance(v, str) and v.strip() == '':
+            return None
+        return v
 
 class ParentCreate(ParentBase):
     """Schema for creating a new parent"""
@@ -26,10 +35,19 @@ class ParentUpdate(BaseModel):
     father_name: Optional[str] = None
     mother_phone: Optional[str] = None
     father_phone: Optional[str] = None
-    mother_email: Optional[EmailStr] = None
-    father_email: Optional[EmailStr] = None
+    mother_email: Optional[Union[EmailStr, str]] = None
+    father_email: Optional[Union[EmailStr, str]] = None
     par_address: Optional[str] = None
     par_type: Optional[str] = None
+    
+    @validator('mother_email', 'father_email', pre=True)
+    def validate_email(cls, v):
+        """Convert empty strings to None for email fields"""
+        if v == '' or v is None:
+            return None
+        if isinstance(v, str) and v.strip() == '':
+            return None
+        return v
 
 class ParentResponse(ParentBase):
     """Schema for parent response"""

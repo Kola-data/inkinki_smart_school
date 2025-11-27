@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { getArrayFromResponse } from '../../../utils/apiHelpers';
 import {
 	CalendarIcon,
 	CheckCircleIcon,
@@ -19,6 +20,7 @@ import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import AcademicYearForm from '../components/AcademicYearForm';
 import AcademicYearViewModal from '../components/AcademicYearViewModal';
+import { isTeacher, isAccountant } from '../../../utils/rolePermissions';
 
 interface AcademicYearMember {
 	academic_id: string;
@@ -128,14 +130,12 @@ export default function AcademicYearManagement() {
 				setLoading(true);
 				const timestamp = new Date().getTime();
 				const { data } = await api.get(`/academic-years/?school_id=${schoolId}&_t=${timestamp}`);
-				setAcademicYears(data || []);
+				setAcademicYears(getArrayFromResponse(data));
 			} catch (error: any) {
 				const errorMessage = error.response?.data?.detail || 'Failed to fetch academic years';
 				if (error.response?.status !== 403) {
 					toast.error(errorMessage);
-				}
-				console.error('Error fetching academic years:', error);
-			} finally {
+				}} finally {
 				setLoading(false);
 			}
 		};
@@ -235,17 +235,32 @@ export default function AcademicYearManagement() {
 
 	// Refresh academic years data with cache busting
 	const refreshAcademicYears = async () => {
-		if (!schoolId) return;
+		if (!schoolId) {
+			console.warn('Cannot refresh academic years: schoolId is missing');
+			return;
+		}
 
 		try {
 			const timestamp = new Date().getTime();
 			const { data } = await api.get(`/academic-years/?school_id=${schoolId}&_t=${timestamp}`);
-			setAcademicYears(data || []);
+			
+			// Handle paginated response
+			let newAcademicYearsData: AcademicYearMember[] = [];
+			if (data && Array.isArray(data.items)) {
+				newAcademicYearsData = data.items;
+			} else if (Array.isArray(data)) {
+				newAcademicYearsData = data;
+			} else {
+				newAcademicYearsData = getArrayFromResponse(data);
+			}
+			
+			// Force state update by creating a new array reference
+			setAcademicYears([...newAcademicYearsData]);
 			setCurrentPage(1);
 		} catch (error: any) {
-			const errorMessage = error.response?.data?.detail || 'Failed to refresh academic years data';
+			console.error('Refresh academic years error:', error);
+			const errorMessage = error.response?.data?.detail || error.message || 'Failed to refresh academic years data';
 			toast.error(errorMessage);
-			console.error('Error refreshing academic years:', error);
 		}
 	};
 
@@ -272,6 +287,8 @@ export default function AcademicYearManagement() {
 			toast.success('Academic year created successfully!');
 			setCreateConfirmOpen(false);
 			setFormDataToSubmit(null);
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			await refreshAcademicYears();
 		} catch (error: any) {
 			toast.error(error.response?.data?.detail || 'Failed to create academic year');
@@ -298,6 +315,8 @@ export default function AcademicYearManagement() {
 			setUpdateConfirmOpen(false);
 			setSelectedAcademicYear(null);
 			setFormDataToSubmit(null);
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			await refreshAcademicYears();
 		} catch (error: any) {
 			toast.error(error.response?.data?.detail || 'Failed to update academic year');
@@ -316,6 +335,8 @@ export default function AcademicYearManagement() {
 			toast.success('Academic year deleted successfully!');
 			setDeleteConfirmOpen(false);
 			setSelectedAcademicYear(null);
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			await refreshAcademicYears();
 		} catch (error: any) {
 			toast.error(error.response?.data?.detail || 'Failed to delete academic year');
@@ -333,6 +354,8 @@ export default function AcademicYearManagement() {
 		try {
 			await api.patch(`/academic-years/${academicId}/set-current?school_id=${schoolId}`);
 			toast.success('Academic year set as current successfully!');
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			await refreshAcademicYears();
 		} catch (error: any) {
 			toast.error(error.response?.data?.detail || 'Failed to set academic year as current');
@@ -386,7 +409,7 @@ export default function AcademicYearManagement() {
 		return (
 			<div className="flex bg-gray-50 min-h-screen">
 				<Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-				<div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+				<div className="flex-1 flex flex-col min-h-screen overflow-hidden lg:ml-64">
 					<Topbar onMenuClick={toggleSidebar} sidebarOpen={sidebarOpen} />
 					<main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
 						<div className="text-center">
@@ -403,7 +426,7 @@ export default function AcademicYearManagement() {
 		return (
 			<div className="flex bg-gray-50 min-h-screen">
 				<Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-				<div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+				<div className="flex-1 flex flex-col min-h-screen overflow-hidden lg:ml-64">
 					<Topbar onMenuClick={toggleSidebar} sidebarOpen={sidebarOpen} />
 					<main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
 						<div className="text-center">
@@ -418,7 +441,7 @@ export default function AcademicYearManagement() {
 	return (
 		<div className="flex bg-gray-50 min-h-screen">
 			<Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-			<div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+			<div className="flex-1 flex flex-col min-h-screen overflow-hidden lg:ml-64">
 				<Topbar onMenuClick={toggleSidebar} sidebarOpen={sidebarOpen} />
 				<main className="flex-1 overflow-y-auto p-6 space-y-6">
 					{/* Header */}
@@ -427,45 +450,54 @@ export default function AcademicYearManagement() {
 							<h1 className="text-3xl font-bold text-gray-900">Academic Year Management</h1>
 							<p className="text-gray-600 mt-1">Manage your school academic years</p>
 						</div>
-						<button
-							onClick={openCreateModal}
-							className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-[3px] shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
-						>
-							<PlusIcon className="w-5 h-5" />
-							<span>Add Academic Year</span>
-						</button>
+						{!isTeacher() && !isAccountant() && (
+							<button
+								onClick={openCreateModal}
+								className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-[3px] shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
+							>
+								<PlusIcon className="w-5 h-5" />
+								<span>Add Academic Year</span>
+							</button>
+						)}
 					</div>
 
-					{/* Analytics Card */}
-					<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6">
-						<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-							<div className="flex items-center gap-3">
+					{/* Analytics Cards */}
+					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+						<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6 relative overflow-hidden">
+							<div className="absolute top-0 left-0 right-0 h-1 bg-blue-600"></div>
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="text-sm font-medium text-gray-600">Total Years</p>
+									<p className="text-3xl font-bold text-gray-900 mt-2">{analytics.total}</p>
+								</div>
 								<div className="p-3 bg-blue-100 rounded-[3px]">
 									<CalendarIcon className="w-6 h-6 text-blue-600" />
 								</div>
-								<div>
-									<p className="text-sm font-medium text-gray-600">Total Years</p>
-									<p className="text-2xl font-bold text-gray-900 mt-1">{analytics.total}</p>
-								</div>
 							</div>
+						</div>
 
-							<div className="flex items-center gap-3">
+						<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6 relative overflow-hidden">
+							<div className="absolute top-0 left-0 right-0 h-1 bg-green-600"></div>
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="text-sm font-medium text-gray-600">Current</p>
+									<p className="text-3xl font-bold text-green-600 mt-2">{analytics.current}</p>
+								</div>
 								<div className="p-3 bg-green-100 rounded-[3px]">
 									<CheckCircleIcon className="w-6 h-6 text-green-600" />
 								</div>
-								<div>
-									<p className="text-sm font-medium text-gray-600">Current</p>
-									<p className="text-2xl font-bold text-green-600 mt-1">{analytics.current}</p>
-								</div>
 							</div>
+						</div>
 
-							<div className="flex items-center gap-3">
-								<div className="p-3 bg-gray-100 rounded-[3px]">
-									<XCircleIcon className="w-6 h-6 text-gray-600" />
-								</div>
+						<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6 relative overflow-hidden">
+							<div className="absolute top-0 left-0 right-0 h-1 bg-gray-600"></div>
+							<div className="flex items-center justify-between">
 								<div>
 									<p className="text-sm font-medium text-gray-600">Previous</p>
-									<p className="text-2xl font-bold text-gray-600 mt-1">{analytics.previous}</p>
+									<p className="text-3xl font-bold text-gray-600 mt-2">{analytics.previous}</p>
+								</div>
+								<div className="p-3 bg-gray-100 rounded-[3px]">
+									<XCircleIcon className="w-6 h-6 text-gray-600" />
 								</div>
 							</div>
 						</div>
@@ -717,20 +749,24 @@ export default function AcademicYearManagement() {
 														>
 															<EyeIcon className="w-5 h-5" />
 														</button>
-														<button
-															onClick={() => openEditModal(year)}
-															className="p-2 text-green-600 hover:bg-green-50 rounded-[3px] transition-colors"
-															title="Edit"
-														>
-															<PencilIcon className="w-5 h-5" />
-														</button>
-														<button
-															onClick={() => openDeleteConfirm(year)}
-															className="p-2 text-red-600 hover:bg-red-50 rounded-[3px] transition-colors"
-															title="Delete"
-														>
-															<TrashIcon className="w-5 h-5" />
-														</button>
+														{!isTeacher() && !isAccountant() && (
+															<>
+																<button
+																	onClick={() => openEditModal(year)}
+																	className="p-2 text-green-600 hover:bg-green-50 rounded-[3px] transition-colors"
+																	title="Edit"
+																>
+																	<PencilIcon className="w-5 h-5" />
+																</button>
+																<button
+																	onClick={() => openDeleteConfirm(year)}
+																	className="p-2 text-red-600 hover:bg-red-50 rounded-[3px] transition-colors"
+																	title="Delete"
+																>
+																	<TrashIcon className="w-5 h-5" />
+																</button>
+															</>
+														)}
 													</div>
 												</td>
 											</tr>
@@ -790,7 +826,7 @@ export default function AcademicYearManagement() {
 				isOpen={createModalOpen}
 				onClose={() => setCreateModalOpen(false)}
 				title="Create Academic Year"
-				size="lg"
+				size="xl"
 			>
 				<AcademicYearForm
 					onSubmit={handleCreateSubmit}
@@ -807,7 +843,7 @@ export default function AcademicYearManagement() {
 					setSelectedAcademicYear(null);
 				}}
 				title="Edit Academic Year"
-				size="lg"
+				size="xl"
 			>
 				{selectedAcademicYear && (
 					<AcademicYearForm
@@ -846,7 +882,7 @@ export default function AcademicYearManagement() {
 				title="Create Academic Year"
 				message={`Are you sure you want to create "${formDataToSubmit?.academic_name || 'this academic year'}"?`}
 				confirmText="Create"
-				confirmColor="green"
+				type="info"
 				loading={formLoading}
 			/>
 
@@ -860,7 +896,7 @@ export default function AcademicYearManagement() {
 				title="Update Academic Year"
 				message={`Are you sure you want to update "${selectedAcademicYear?.academic_name || 'this academic year'}"?`}
 				confirmText="Update"
-				confirmColor="green"
+				type="info"
 				loading={formLoading}
 			/>
 
@@ -874,7 +910,7 @@ export default function AcademicYearManagement() {
 				title="Delete Academic Year"
 				message={`Are you sure you want to delete "${selectedAcademicYear?.academic_name || 'this academic year'}"? This action cannot be undone.`}
 				confirmText="Delete"
-				confirmColor="red"
+				type="danger"
 				loading={deleteLoading}
 			/>
 		</div>

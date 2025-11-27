@@ -23,22 +23,34 @@ class SchoolService:
         cached_schools = await redis_service.get(cache_key)
         
         if cached_schools:
-            # Log cache hit
-            await logging_service.log_cache_operation("get", cache_key, hit=True)
+            # Log cache hit (non-blocking)
+            try:
+                await logging_service.log_cache_operation("get", cache_key, hit=True)
+            except:
+                pass  # Don't fail if logging fails
+            try:
+                process_cache_logs.delay({
+                    "operation": "get",
+                    "key": cache_key,
+                    "hit": True
+                })
+            except:
+                pass  # Don't fail if Celery is unavailable
+            return cached_schools
+        
+        # Log cache miss (non-blocking)
+        try:
+            await logging_service.log_cache_operation("get", cache_key, hit=False)
+        except:
+            pass
+        try:
             process_cache_logs.delay({
                 "operation": "get",
                 "key": cache_key,
-                "hit": True
+                "hit": False
             })
-            return cached_schools
-        
-        # Log cache miss
-        await logging_service.log_cache_operation("get", cache_key, hit=False)
-        process_cache_logs.delay({
-            "operation": "get",
-            "key": cache_key,
-            "hit": False
-        })
+        except:
+            pass
         
         # If not in cache, get from database
         result = await self.db.execute(
@@ -46,13 +58,19 @@ class SchoolService:
         )
         schools = result.scalars().all()
         
-        # Log database operation
-        await logging_service.log_database_operation("SELECT", "schools", data={"count": len(schools)})
-        process_database_logs.delay({
-            "operation": "SELECT",
-            "table": "schools",
-            "data": {"count": len(schools)}
-        })
+        # Log database operation (non-blocking)
+        try:
+            await logging_service.log_database_operation("SELECT", "schools", data={"count": len(schools)})
+        except:
+            pass
+        try:
+            process_database_logs.delay({
+                "operation": "SELECT",
+                "table": "schools",
+                "data": {"count": len(schools)}
+            })
+        except:
+            pass
         
         # Cache the result
         school_data = [school.to_dict() for school in schools]

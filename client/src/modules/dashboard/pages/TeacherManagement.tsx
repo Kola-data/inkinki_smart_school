@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { getArrayFromResponse } from '../../../utils/apiHelpers';
 import {
 	AcademicCapIcon,
 	CheckCircleIcon,
@@ -151,18 +152,12 @@ export default function TeacherManagement() {
 				setLoading(true);
 				const timestamp = new Date().getTime();
 				const { data } = await api.get(`/teachers/?school_id=${schoolId}&_t=${timestamp}`);
-				console.log('Teachers data received:', data);
-				if (data && data.length > 0) {
-					console.log('First teacher sample:', data[0]);
-				}
-				setTeachers(data || []);
+				setTeachers(getArrayFromResponse(data));
 			} catch (error: any) {
 				const errorMessage = error.response?.data?.detail || 'Failed to fetch teachers';
 				if (error.response?.status !== 403) {
 					toast.error(errorMessage);
-				}
-				console.error('Error fetching teachers:', error);
-			} finally {
+				}} finally {
 				setLoading(false);
 			}
 		};
@@ -178,15 +173,13 @@ export default function TeacherManagement() {
 			try {
 				const timestamp = new Date().getTime();
 				const { data } = await api.get(`/staff/?school_id=${schoolId}&_t=${timestamp}`);
-				const allStaff = data || [];
+				const allStaff = getArrayFromResponse(data);
 				// Get staff IDs that are already teachers
 				const teacherStaffIds = new Set(teachers.map(t => t.staff_id));
 				// Filter out staff who already have teacher records
 				const available = allStaff.filter((s: StaffMember) => !teacherStaffIds.has(s.staff_id));
 				setAvailableStaff(available);
-			} catch (error: any) {
-				console.error('Error fetching available staff:', error);
-				setAvailableStaff([]);
+			} catch (error: any) {setAvailableStaff([]);
 			}
 		};
 
@@ -203,15 +196,13 @@ export default function TeacherManagement() {
 			try {
 				const timestamp = new Date().getTime();
 				const { data } = await api.get(`/staff/?school_id=${schoolId}&_t=${timestamp}`);
-				const allStaff = data || [];
+				const allStaff = getArrayFromResponse(data);
 				// Get staff IDs that are already teachers
 				const teacherStaffIds = new Set(teachers.map(t => t.staff_id));
 				// Filter out staff who already have teacher records
 				const available = allStaff.filter((s: StaffMember) => !teacherStaffIds.has(s.staff_id));
 				setAvailableStaff(available);
-			} catch (error: any) {
-				console.error('Error fetching available staff:', error);
-				setAvailableStaff([]);
+			} catch (error: any) {setAvailableStaff([]);
 			}
 		};
 
@@ -378,17 +369,32 @@ export default function TeacherManagement() {
 
 	// Refresh teachers data with cache busting
 	const refreshTeachers = async () => {
-		if (!schoolId) return;
+		if (!schoolId) {
+			console.warn('Cannot refresh teachers: schoolId is missing');
+			return;
+		}
 
 		try {
 			const timestamp = new Date().getTime();
 			const { data } = await api.get(`/teachers/?school_id=${schoolId}&_t=${timestamp}`);
-			setTeachers(data || []);
+			
+			// Handle paginated response
+			let newTeachersData: TeacherMember[] = [];
+			if (data && Array.isArray(data.items)) {
+				newTeachersData = data.items;
+			} else if (Array.isArray(data)) {
+				newTeachersData = data;
+			} else {
+				newTeachersData = getArrayFromResponse(data);
+			}
+			
+			// Force state update by creating a new array reference
+			setTeachers([...newTeachersData]);
 			setCurrentPage(1);
 		} catch (error: any) {
-			const errorMessage = error.response?.data?.detail || 'Failed to refresh teachers data';
+			console.error('Refresh teachers error:', error);
+			const errorMessage = error.response?.data?.detail || error.message || 'Failed to refresh teachers data';
 			toast.error(errorMessage);
-			console.error('Error refreshing teachers:', error);
 		}
 	};
 
@@ -412,9 +418,17 @@ export default function TeacherManagement() {
 			toast.success('Teacher created successfully!');
 			setCreateConfirmOpen(false);
 			setFormDataToSubmit(null);
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			await refreshTeachers();
 		} catch (error: any) {
-			toast.error(error.response?.data?.detail || 'Failed to create teacher');
+			const errorMessage = error.response?.data?.detail;
+			if (Array.isArray(errorMessage)) {
+				const errorMessages = errorMessage.map((err: any) => `${err.loc?.join('.')}: ${err.msg}`).join(', ');
+				toast.error(errorMessages || 'Validation error');
+			} else {
+				toast.error(errorMessage || error.message || 'Failed to create teacher');
+			}
 		} finally {
 			setFormLoading(false);
 		}
@@ -438,9 +452,17 @@ export default function TeacherManagement() {
 			setUpdateConfirmOpen(false);
 			setSelectedTeacher(null);
 			setFormDataToSubmit(null);
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			await refreshTeachers();
 		} catch (error: any) {
-			toast.error(error.response?.data?.detail || 'Failed to update teacher');
+			const errorMessage = error.response?.data?.detail;
+			if (Array.isArray(errorMessage)) {
+				const errorMessages = errorMessage.map((err: any) => `${err.loc?.join('.')}: ${err.msg}`).join(', ');
+				toast.error(errorMessages || 'Validation error');
+			} else {
+				toast.error(errorMessage || error.message || 'Failed to update teacher');
+			}
 		} finally {
 			setFormLoading(false);
 		}
@@ -456,9 +478,17 @@ export default function TeacherManagement() {
 			toast.success('Teacher deleted successfully!');
 			setDeleteConfirmOpen(false);
 			setSelectedTeacher(null);
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			await refreshTeachers();
 		} catch (error: any) {
-			toast.error(error.response?.data?.detail || 'Failed to delete teacher');
+			const errorMessage = error.response?.data?.detail;
+			if (Array.isArray(errorMessage)) {
+				const errorMessages = errorMessage.map((err: any) => `${err.loc?.join('.')}: ${err.msg}`).join(', ');
+				toast.error(errorMessages || 'Validation error');
+			} else {
+				toast.error(errorMessage || error.message || 'Failed to delete teacher');
+			}
 		} finally {
 			setDeleteLoading(false);
 		}
@@ -470,17 +500,20 @@ export default function TeacherManagement() {
 
 		setStatusUpdateLoading(teacherId);
 		setStatusDropdownOpen(null);
-		try {
-			console.log('Updating teacher status:', { teacherId, newStatus, schoolId });
-			const response = await api.put(`/teachers/${teacherId}?school_id=${schoolId}`, {
+		try {const response = await api.put(`/teachers/${teacherId}?school_id=${schoolId}`, {
 				is_active: newStatus,
-			});
-			console.log('Status update response:', response.data);
-			toast.success(`Teacher ${newStatus ? 'activated' : 'deactivated'} successfully!`);
+			});			toast.success(`Teacher ${newStatus ? 'activated' : 'deactivated'} successfully!`);
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			await refreshTeachers();
 		} catch (error: any) {
-			console.error('Status update error:', error.response?.data || error.message);
-			toast.error(error.response?.data?.detail || 'Failed to update teacher status');
+			const errorMessage = error.response?.data?.detail;
+			if (Array.isArray(errorMessage)) {
+				const errorMessages = errorMessage.map((err: any) => `${err.loc?.join('.')}: ${err.msg}`).join(', ');
+				toast.error(errorMessages || 'Validation error');
+			} else {
+				toast.error(errorMessage || error.message || 'Failed to update teacher status');
+			}
 		} finally {
 			setStatusUpdateLoading(null);
 		}
@@ -531,7 +564,7 @@ export default function TeacherManagement() {
 		return (
 			<div className="flex bg-gray-50 min-h-screen">
 				<Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-				<div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+				<div className="flex-1 flex flex-col min-h-screen overflow-hidden lg:ml-64">
 					<Topbar onMenuClick={toggleSidebar} sidebarOpen={sidebarOpen} />
 					<main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
 						<div className="text-center">
@@ -548,7 +581,7 @@ export default function TeacherManagement() {
 		return (
 			<div className="flex bg-gray-50 min-h-screen">
 				<Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-				<div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+				<div className="flex-1 flex flex-col min-h-screen overflow-hidden lg:ml-64">
 					<Topbar onMenuClick={toggleSidebar} sidebarOpen={sidebarOpen} />
 					<main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
 						<div className="text-center">
@@ -563,7 +596,7 @@ export default function TeacherManagement() {
 	return (
 		<div className="flex bg-gray-50 min-h-screen">
 			<Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-			<div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+			<div className="flex-1 flex flex-col min-h-screen overflow-hidden lg:ml-64">
 				<Topbar onMenuClick={toggleSidebar} sidebarOpen={sidebarOpen} />
 				<main className="flex-1 overflow-y-auto p-6 space-y-6">
 					{/* Header */}
@@ -581,46 +614,56 @@ export default function TeacherManagement() {
 						</button>
 					</div>
 
-					{/* Analytics Card */}
-					<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6">
-						<div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-							<div className="flex items-center gap-3">
+					{/* Analytics Cards */}
+					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+						<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6 relative overflow-hidden">
+							<div className="absolute top-0 left-0 right-0 h-1 bg-blue-600"></div>
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="text-sm font-medium text-gray-600">Total Teachers</p>
+									<p className="text-3xl font-bold text-gray-900 mt-2">{analytics.total}</p>
+								</div>
 								<div className="p-3 bg-blue-100 rounded-[3px]">
 									<AcademicCapIcon className="w-6 h-6 text-blue-600" />
 								</div>
-								<div>
-									<p className="text-sm font-medium text-gray-600">Total Teachers</p>
-									<p className="text-2xl font-bold text-gray-900 mt-1">{analytics.total}</p>
-								</div>
 							</div>
+						</div>
 
-							<div className="flex items-center gap-3">
+						<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6 relative overflow-hidden">
+							<div className="absolute top-0 left-0 right-0 h-1 bg-green-600"></div>
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="text-sm font-medium text-gray-600">Active</p>
+									<p className="text-3xl font-bold text-green-600 mt-2">{analytics.active}</p>
+								</div>
 								<div className="p-3 bg-green-100 rounded-[3px]">
 									<CheckCircleIcon className="w-6 h-6 text-green-600" />
 								</div>
-								<div>
-									<p className="text-sm font-medium text-gray-600">Active</p>
-									<p className="text-2xl font-bold text-green-600 mt-1">{analytics.active}</p>
-								</div>
 							</div>
+						</div>
 
-							<div className="flex items-center gap-3">
+						<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6 relative overflow-hidden">
+							<div className="absolute top-0 left-0 right-0 h-1 bg-red-600"></div>
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="text-sm font-medium text-gray-600">Inactive</p>
+									<p className="text-3xl font-bold text-red-600 mt-2">{analytics.inactive}</p>
+								</div>
 								<div className="p-3 bg-red-100 rounded-[3px]">
 									<PauseCircleIcon className="w-6 h-6 text-red-600" />
 								</div>
-								<div>
-									<p className="text-sm font-medium text-gray-600">Inactive</p>
-									<p className="text-2xl font-bold text-red-600 mt-1">{analytics.inactive}</p>
-								</div>
 							</div>
+						</div>
 
-							<div className="flex items-center gap-3">
-								<div className="p-3 bg-purple-100 rounded-[3px]">
-									<SparklesIcon className="w-6 h-6 text-purple-600" />
-								</div>
+						<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6 relative overflow-hidden">
+							<div className="absolute top-0 left-0 right-0 h-1 bg-purple-600"></div>
+							<div className="flex items-center justify-between">
 								<div>
 									<p className="text-sm font-medium text-gray-600">Specializations</p>
-									<p className="text-2xl font-bold text-purple-600 mt-1">{Object.keys(analytics.specializations).length}</p>
+									<p className="text-3xl font-bold text-purple-600 mt-2">{Object.keys(analytics.specializations).length}</p>
+								</div>
+								<div className="p-3 bg-purple-100 rounded-[3px]">
+									<SparklesIcon className="w-6 h-6 text-purple-600" />
 								</div>
 							</div>
 						</div>
@@ -1081,7 +1124,7 @@ export default function TeacherManagement() {
 
 			{/* Create Modal */}
 			{createModalOpen && (
-				<Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Add New Teacher" size="lg">
+				<Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Add New Teacher" size="xl">
 					<TeacherForm
 						teacher={null}
 						onSubmit={handleCreateSubmit}
@@ -1095,7 +1138,7 @@ export default function TeacherManagement() {
 
 			{/* Edit Modal */}
 			{editModalOpen && selectedTeacher && (
-				<Modal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} title="Edit Teacher" size="lg">
+				<Modal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} title="Edit Teacher" size="xl">
 					<TeacherForm
 						teacher={selectedTeacher}
 						onSubmit={handleUpdateSubmit}

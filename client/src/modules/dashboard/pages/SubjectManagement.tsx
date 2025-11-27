@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { getArrayFromResponse } from '../../../utils/apiHelpers';
 import {
 	BookOpenIcon,
 	MagnifyingGlassIcon,
@@ -17,6 +18,7 @@ import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import SubjectForm from '../components/SubjectForm';
 import SubjectViewModal from '../components/SubjectViewModal';
+import { isTeacher } from '../../../utils/rolePermissions';
 
 interface SubjectMember {
 	subj_id: string;
@@ -85,14 +87,12 @@ export default function SubjectManagement() {
 				setLoading(true);
 				const timestamp = new Date().getTime();
 				const { data } = await api.get(`/subjects/?school_id=${schoolId}&_t=${timestamp}`);
-				setSubjects(data || []);
+				setSubjects(getArrayFromResponse(data));
 			} catch (error: any) {
 				const errorMessage = error.response?.data?.detail || 'Failed to fetch subjects';
 				if (error.response?.status !== 403) {
 					toast.error(errorMessage);
-				}
-				console.error('Error fetching subjects:', error);
-			} finally {
+				}} finally {
 				setLoading(false);
 			}
 		};
@@ -152,17 +152,32 @@ export default function SubjectManagement() {
 
 	// Refresh subjects data with cache busting
 	const refreshSubjects = async () => {
-		if (!schoolId) return;
+		if (!schoolId) {
+			console.warn('Cannot refresh subjects: schoolId is missing');
+			return;
+		}
 
 		try {
 			const timestamp = new Date().getTime();
 			const { data } = await api.get(`/subjects/?school_id=${schoolId}&_t=${timestamp}`);
-			setSubjects(data || []);
+			
+			// Handle paginated response
+			let newSubjectsData: SubjectMember[] = [];
+			if (data && Array.isArray(data.items)) {
+				newSubjectsData = data.items;
+			} else if (Array.isArray(data)) {
+				newSubjectsData = data;
+			} else {
+				newSubjectsData = getArrayFromResponse(data);
+			}
+			
+			// Force state update by creating a new array reference
+			setSubjects([...newSubjectsData]);
 			setCurrentPage(1);
 		} catch (error: any) {
-			const errorMessage = error.response?.data?.detail || 'Failed to refresh subjects data';
+			console.error('Refresh subjects error:', error);
+			const errorMessage = error.response?.data?.detail || error.message || 'Failed to refresh subjects data';
 			toast.error(errorMessage);
-			console.error('Error refreshing subjects:', error);
 		}
 	};
 
@@ -189,9 +204,17 @@ export default function SubjectManagement() {
 			toast.success('Subject created successfully!');
 			setCreateConfirmOpen(false);
 			setFormDataToSubmit(null);
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			await refreshSubjects();
 		} catch (error: any) {
-			toast.error(error.response?.data?.detail || 'Failed to create subject');
+			const errorMessage = error.response?.data?.detail;
+			if (Array.isArray(errorMessage)) {
+				const errorMessages = errorMessage.map((err: any) => `${err.loc?.join('.')}: ${err.msg}`).join(', ');
+				toast.error(errorMessages || 'Validation error');
+			} else {
+				toast.error(errorMessage || error.message || 'Failed to create subject');
+			}
 		} finally {
 			setFormLoading(false);
 		}
@@ -215,9 +238,17 @@ export default function SubjectManagement() {
 			setUpdateConfirmOpen(false);
 			setSelectedSubject(null);
 			setFormDataToSubmit(null);
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			await refreshSubjects();
 		} catch (error: any) {
-			toast.error(error.response?.data?.detail || 'Failed to update subject');
+			const errorMessage = error.response?.data?.detail;
+			if (Array.isArray(errorMessage)) {
+				const errorMessages = errorMessage.map((err: any) => `${err.loc?.join('.')}: ${err.msg}`).join(', ');
+				toast.error(errorMessages || 'Validation error');
+			} else {
+				toast.error(errorMessage || error.message || 'Failed to update subject');
+			}
 		} finally {
 			setFormLoading(false);
 		}
@@ -233,9 +264,17 @@ export default function SubjectManagement() {
 			toast.success('Subject deleted successfully!');
 			setDeleteConfirmOpen(false);
 			setSelectedSubject(null);
+			// Small delay to ensure backend cache is cleared
+			await new Promise(resolve => setTimeout(resolve, 100));
 			await refreshSubjects();
 		} catch (error: any) {
-			toast.error(error.response?.data?.detail || 'Failed to delete subject');
+			const errorMessage = error.response?.data?.detail;
+			if (Array.isArray(errorMessage)) {
+				const errorMessages = errorMessage.map((err: any) => `${err.loc?.join('.')}: ${err.msg}`).join(', ');
+				toast.error(errorMessages || 'Validation error');
+			} else {
+				toast.error(errorMessage || error.message || 'Failed to delete subject');
+			}
 		} finally {
 			setDeleteLoading(false);
 		}
@@ -268,7 +307,7 @@ export default function SubjectManagement() {
 		return (
 			<div className="flex bg-gray-50 min-h-screen">
 				<Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-				<div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+				<div className="flex-1 flex flex-col min-h-screen overflow-hidden lg:ml-64">
 					<Topbar onMenuClick={toggleSidebar} sidebarOpen={sidebarOpen} />
 					<main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
 						<div className="text-center">
@@ -285,7 +324,7 @@ export default function SubjectManagement() {
 		return (
 			<div className="flex bg-gray-50 min-h-screen">
 				<Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-				<div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+				<div className="flex-1 flex flex-col min-h-screen overflow-hidden lg:ml-64">
 					<Topbar onMenuClick={toggleSidebar} sidebarOpen={sidebarOpen} />
 					<main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
 						<div className="text-center">
@@ -300,7 +339,7 @@ export default function SubjectManagement() {
 	return (
 		<div className="flex bg-gray-50 min-h-screen">
 			<Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-			<div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+			<div className="flex-1 flex flex-col min-h-screen overflow-hidden lg:ml-64">
 				<Topbar onMenuClick={toggleSidebar} sidebarOpen={sidebarOpen} />
 				<main className="flex-1 overflow-y-auto p-6 space-y-6">
 					{/* Header */}
@@ -309,24 +348,29 @@ export default function SubjectManagement() {
 							<h1 className="text-3xl font-bold text-gray-900">Subject Management</h1>
 							<p className="text-gray-600 mt-1">Manage your school subjects</p>
 						</div>
-						<button
-							onClick={openCreateModal}
-							className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-[3px] shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
-						>
-							<PlusIcon className="w-5 h-5" />
-							<span>Add Subject</span>
-						</button>
+						{!isTeacher() && (
+							<button
+								onClick={openCreateModal}
+								className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-[3px] shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
+							>
+								<PlusIcon className="w-5 h-5" />
+								<span>Add Subject</span>
+							</button>
+						)}
 					</div>
 
-					{/* Analytics Card */}
-					<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6">
-						<div className="flex items-center gap-3">
-							<div className="p-3 bg-blue-100 rounded-[3px]">
-								<BookOpenIcon className="w-6 h-6 text-blue-600" />
-							</div>
-							<div>
-								<p className="text-sm font-medium text-gray-600">Total Subjects</p>
-								<p className="text-2xl font-bold text-gray-900 mt-1">{analytics.total}</p>
+					{/* Analytics Cards */}
+					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+						<div className="bg-white rounded-[3px] shadow-sm border border-gray-200 p-6 relative overflow-hidden">
+							<div className="absolute top-0 left-0 right-0 h-1 bg-blue-600"></div>
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="text-sm font-medium text-gray-600">Total Subjects</p>
+									<p className="text-3xl font-bold text-gray-900 mt-2">{analytics.total}</p>
+								</div>
+								<div className="p-3 bg-blue-100 rounded-[3px]">
+									<BookOpenIcon className="w-6 h-6 text-blue-600" />
+								</div>
 							</div>
 						</div>
 					</div>
@@ -437,20 +481,24 @@ export default function SubjectManagement() {
 														>
 															<EyeIcon className="w-5 h-5" />
 														</button>
-														<button
-															onClick={() => openEditModal(subject)}
-															className="p-2 text-green-600 hover:bg-green-50 rounded-[3px] transition-colors"
-															title="Edit"
-														>
-															<PencilIcon className="w-5 h-5" />
-														</button>
-														<button
-															onClick={() => openDeleteConfirm(subject)}
-															className="p-2 text-red-600 hover:bg-red-50 rounded-[3px] transition-colors"
-															title="Delete"
-														>
-															<TrashIcon className="w-5 h-5" />
-														</button>
+														{!isTeacher() && (
+															<>
+																<button
+																	onClick={() => openEditModal(subject)}
+																	className="p-2 text-green-600 hover:bg-green-50 rounded-[3px] transition-colors"
+																	title="Edit"
+																>
+																	<PencilIcon className="w-5 h-5" />
+																</button>
+																<button
+																	onClick={() => openDeleteConfirm(subject)}
+																	className="p-2 text-red-600 hover:bg-red-50 rounded-[3px] transition-colors"
+																	title="Delete"
+																>
+																	<TrashIcon className="w-5 h-5" />
+																</button>
+															</>
+														)}
 													</div>
 												</td>
 											</tr>
@@ -510,7 +558,7 @@ export default function SubjectManagement() {
 				isOpen={createModalOpen}
 				onClose={() => setCreateModalOpen(false)}
 				title="Create Subject"
-				size="lg"
+				size="xl"
 			>
 				<SubjectForm
 					onSubmit={handleCreateSubmit}
@@ -527,7 +575,7 @@ export default function SubjectManagement() {
 					setSelectedSubject(null);
 				}}
 				title="Edit Subject"
-				size="lg"
+				size="xl"
 			>
 				{selectedSubject && (
 					<SubjectForm
@@ -566,7 +614,7 @@ export default function SubjectManagement() {
 				title="Create Subject"
 				message={`Are you sure you want to create "${formDataToSubmit?.subj_name || 'this subject'}"?`}
 				confirmText="Create"
-				confirmColor="green"
+				type="info"
 				loading={formLoading}
 			/>
 
@@ -580,7 +628,7 @@ export default function SubjectManagement() {
 				title="Update Subject"
 				message={`Are you sure you want to update "${selectedSubject?.subj_name || 'this subject'}"?`}
 				confirmText="Update"
-				confirmColor="green"
+				type="info"
 				loading={formLoading}
 			/>
 
@@ -594,7 +642,7 @@ export default function SubjectManagement() {
 				title="Delete Subject"
 				message={`Are you sure you want to delete "${selectedSubject?.subj_name || 'this subject'}"? This action cannot be undone.`}
 				confirmText="Delete"
-				confirmColor="red"
+				type="danger"
 				loading={deleteLoading}
 			/>
 		</div>
